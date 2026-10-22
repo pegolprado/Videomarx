@@ -1,0 +1,29 @@
+# Supabase CLI (desenvolvimento local com `supabase start`, opcional)
+project_id = "videoai-studio"
+
+[api]
+port = 54321
+schemas = ["public"]
+max_rows = 1000
+
+[db]
+port = 54322
+major_version = 15
+
+[auth]
+site_url = "http://localhost:5173"
+additional_redirect_urls = ["http://localhost:5173/**", "https://iamarx.com.br/**", "https://www.iamarx.com.br/**"]
+jwt_expiry = 3600
+enable_refresh_token_rotation = true
+enable_signup = true
+minimum_password_length = 8
+password_requirements = "letters_digits"
+
+[auth.email]
+enable_signup = true
+enable_confirmations = true
+double_confirm_changes = true
+secure_password_change = true
+
+[storage]
+file_size_limit = "500MiB"

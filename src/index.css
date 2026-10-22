@@ -1,0 +1,81 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/inter';
+@import '@fontsource-variable/space-grotesk';
+
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
+/* Tema escuro é o padrão; claro por escolha do usuário (ou "automático", que segue o sistema) */
+:root {
+  --bg: #0b0b12;
+  --surface: #13131d;
+  --surface-2: #1b1b28;
+  --border: #2a2a3b;
+  --text: #ececf4;
+  --muted: #9a9ab0;
+  --accent: #8b5cf6;
+  --accent-2: #22d3ee;
+  --danger: #f43f5e;
+  --success: #10b981;
+  --warning: #f59e0b;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root[data-theme='system'] {
+    --bg: #f6f6fb;
+    --surface: #ffffff;
+    --surface-2: #f0f0f7;
+    --border: #e2e2ec;
+    --text: #15151f;
+    --muted: #5d5d73;
+    color-scheme: light;
+  }
+}
+:root[data-theme='light'] {
+  --bg: #f6f6fb;
+  --surface: #ffffff;
+  --surface-2: #f0f0f7;
+  --border: #e2e2ec;
+  --text: #15151f;
+  --muted: #5d5d73;
+  color-scheme: light;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--border);
+  --color-fg: var(--text);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-2: var(--accent-2);
+  --color-danger: var(--danger);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --font-sans: 'Inter Variable', system-ui, sans-serif;
+  --font-display: 'Space Grotesk Variable', 'Inter Variable', sans-serif;
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+.gradient-text {
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.gradient-bg {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent-2);
+  outline-offset: 2px;
+}
