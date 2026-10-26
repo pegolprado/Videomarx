@@ -11,6 +11,7 @@ declare
   v_acc public.credit_accounts;
 begin
   update public.credit_accounts set available = 500 where user_id = v_u;
+  update public.app_settings set value = '0' where key = 'monthly_budget_usd';
   update public.price_catalog set credits_per_unit = 5, min_credits = 15 where key = 'runway.act_two';
   perform tests.login(v_u);
 

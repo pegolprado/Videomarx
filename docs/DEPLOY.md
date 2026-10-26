@@ -4,24 +4,16 @@ Você vai precisar de: conta no **Supabase**, conta no **Cloudflare** (onde o do
 
 ## 1. Supabase
 
-1. Crie um projeto (região São Paulo, `sa-east-1`).
-2. Aplique as migrações: `npx supabase link --project-ref SEU_REF && npx supabase db push` — ou cole os arquivos de `supabase/migrations/` em ordem no SQL Editor.
-3. **Authentication → URL Configuration**: Site URL `https://iamarx.com.br`; Redirect URLs `https://iamarx.com.br/**` e `http://localhost:5173/**`.
-4. **Authentication → Providers → Email**: confirmação de e-mail ligada. Para produção configure SMTP próprio (o envio padrão do Supabase é limitado).
-5. **Storage**: o bucket privado `media` é criado pela migração. No plano Free o limite por arquivo é 50 MB — ajuste `max_upload_mb` no painel admin para ≤ 50, ou use o plano Pro.
-6. Torne-se administrador (uma vez, no SQL Editor, depois de criar sua conta pelo site):
-   ```sql
-   update public.profiles set role = 'admin' where email = 'seu@email.com';
-   ```
+1. Crie um projeto **novo** (não reaproveite o do ATLAS), região São Paulo.
+2. SQL Editor → New query → cole **todo** o conteúdo de `supabase/setup.sql` → Run. (Equivale a aplicar `supabase/migrations/` em ordem.)
+3. Authentication → URL Configuration: Site URL `https://video.iamarx.com.br`; Redirect URLs `https://video.iamarx.com.br/**` e o endereço `*.workers.dev` do site.
+4. Os e-mails em `admin_emails` (Admin → Configurações) viram administradores automaticamente no cadastro.
+5. Plano Free: arquivos de até 50 MB (já configurado). No plano Pro, aumente `max_upload_mb` e o limite do bucket `media`.
 
 ## 2. Variáveis de ambiente
 
-### Site (públicas — vão para o navegador)
-| Variável | Exemplo |
-|---|---|
-| `VITE_SUPABASE_URL` | `https://xxxx.supabase.co` |
-| `VITE_SUPABASE_ANON_KEY` | anon key (Settings → API) |
-| `VITE_SITE_URL` | `https://iamarx.com.br` |
+### Site (públicas)
+`VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` ficam no arquivo `.env.production` do repositório (são públicas; a segurança vem do RLS). `VITE_SITE_URL` é opcional (padrão: o próprio endereço do site).
 
 ### Worker (SECRETAS — só no servidor, nunca no site)
 | Variável | Obrigatória | Para quê |
@@ -33,16 +25,13 @@ Você vai precisar de: conta no **Supabase**, conta no **Cloudflare** (onde o do
 | `ANTHROPIC_MODEL` | não | padrão `claude-opus-5-5` |
 | `WORKER_CONCURRENCY` | não | tarefas simultâneas (padrão 2) |
 
-Sem uma chave, a integração correspondente aparece como **pendente** no site e as funções dela ficam bloqueadas.
+## 3. Site no Cloudflare (Workers) em video.iamarx.com.br
 
-## 3. Site no Cloudflare Pages com iamarx.com.br
+O ATLAS continua em `iamarx.com.br`; o VideoAI Studio usa o subdomínio `video.iamarx.com.br`.
 
-1. Cloudflare → Workers & Pages → Create → Pages → conectar ao GitHub `pegolprado/Videomarx`.
-2. Build command `npm run build`, output `dist`, variável `NODE_VERSION=22` e as três variáveis `VITE_*`.
-3. Custom domains → adicionar `iamarx.com.br` (e `www.iamarx.com.br`). Se o domínio está registrado no Registro.br, troque os servidores DNS para os do Cloudflare (o painel mostra quais) ou crie um CNAME conforme indicado.
-4. `public/_redirects` já faz o roteamento SPA e `public/_headers` aplica cabeçalhos de segurança (CSP restrita ao Supabase).
-
-Alternativa via GitHub Actions: configure em *Settings → Secrets and variables → Actions* os segredos `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD` e as variáveis `SUPABASE_PROJECT_REF`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `CLOUDFLARE_PROJECT`. O workflow `Deploy` publica a cada push na `main` com CI verde.
+1. Workers & Pages → Create → Import a repository → `pegolprado/Videomarx`. O nome do Worker precisa ser `videomarx` (igual ao `name` de `wrangler.jsonc`).
+2. Build command: deixe vazio. Deploy command: `npx wrangler deploy`. O `wrangler.jsonc` já instala, compila (`npm ci && npm run build`) e publica `dist` com roteamento de SPA; `public/_headers` aplica os cabeçalhos de segurança.
+3. Settings → Domains & Routes → Add → Custom domain → `video.iamarx.com.br`. Não altere os registros DNS do domínio principal (ATLAS).
 
 ## 4. Worker
 

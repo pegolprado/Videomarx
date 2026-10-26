@@ -44,12 +44,11 @@ jobs:
           supabase link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
           supabase db push --password "$SUPABASE_DB_PASSWORD"
 
-      # 2) Site no Cloudflare Pages (domínio iamarx.com.br)
+      # 2) Site (alternativa ao deploy pelo painel do Cloudflare; ver docs/DEPLOY.md)
       - run: npm run build
         env:
           VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
-          VITE_SITE_URL: https://iamarx.com.br
       - name: Publicar no Cloudflare Pages
         if: env.CLOUDFLARE_API_TOKEN != ''
         uses: cloudflare/wrangler-action@v3

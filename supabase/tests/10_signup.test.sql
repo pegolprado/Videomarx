@@ -13,3 +13,16 @@ begin
   raise notice 'cadastro ok';
 end $$;
 rollback;
+
+begin;
+do $$
+declare v_admin uuid; v_user uuid;
+begin
+  v_admin := tests.create_user('marcospr4do@gmail.com');
+  v_user := tests.create_user('outra@teste.com');
+  perform tests.assert_eq((select role from public.profiles where id = v_admin), 'admin', 'e-mail configurado vira admin');
+  perform tests.assert_eq((select role from public.profiles where id = v_user), 'user', 'demais e-mails continuam usuários');
+  perform tests.assert_eq((select value::text from public.app_settings where key = 'max_upload_mb'), '50', 'limite do plano gratuito do Supabase');
+  raise notice 'admin automático ok';
+end $$;
+rollback;

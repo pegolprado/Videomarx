@@ -91,6 +91,21 @@ try {
       console.log(`✓ ${t}${notes ? ` (${notes} verificações)` : ''}`);
     }
   }
+  // supabase/setup.sql (instalação em um passo) precisa gerar o mesmo esquema das migrações
+  const setupDb = `${dbName}_setup`;
+  const setupUrl = url.replace(dbName, setupDb);
+  psql(baseUrl, ['-c', `create database ${setupDb}`]);
+  psql(setupUrl, ['-f', join(testsDir, '00_supabase_stub.sql')]);
+  const setupRes = psql(setupUrl, ['-f', join(root, 'supabase', 'setup.sql')]);
+  const shape = (u) => psql(u, ['-At', '-c', "select (select count(*) from pg_tables where schemaname='public')||'/'||(select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public')||'/'||(select count(*) from pg_policies)"]).stdout.trim();
+  total++;
+  if (setupRes.status !== 0 || shape(setupUrl) !== shape(url)) {
+    failed++;
+    console.error(`✗ supabase/setup.sql difere das migrações (rode node scripts/build-setup-sql.mjs)\n${setupRes.stderr}`);
+  } else {
+    console.log(`✓ supabase/setup.sql equivale às migrações (tabelas/funções/policies: ${shape(url)})`);
+  }
+  psql(baseUrl, ['-c', `drop database if exists ${setupDb} with (force)`]);
   psql(baseUrl, ['-c', `drop database if exists ${dbName} with (force)`]);
   console.log(`\n${total - failed}/${total} arquivos de teste do banco passaram${failed ? ' (com falhas)' : ''}.`);
 } catch (e) {
