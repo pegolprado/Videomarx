@@ -14,6 +14,7 @@ export const JOB_KINDS = [
   'ai.text',
   'local.transcribe',
   'local.tts',
+  'pipeline.auto_video',
 ] as const;
 export type JobKind = (typeof JOB_KINDS)[number];
 
@@ -45,6 +46,7 @@ export const KIND_LABEL: Record<JobKind, string> = {
   'ai.text': 'Roteiro e textos',
   'local.transcribe': 'Legendas automáticas',
   'local.tts': 'Voz (motor próprio)',
+  'pipeline.auto_video': 'Vídeo automático',
 };
 
 export const KIND_PROVIDER: Record<JobKind, 'ffmpeg' | 'runway' | 'anthropic' | 'local' | 'gemini' | 'cloudflare'> = {
@@ -61,6 +63,7 @@ export const KIND_PROVIDER: Record<JobKind, 'ffmpeg' | 'runway' | 'anthropic' | 
   'ai.text': 'anthropic',
   'local.transcribe': 'local',
   'local.tts': 'local',
+  'pipeline.auto_video': 'ffmpeg',
 };
 
 export type Aspect = '9:16' | '16:9' | '1:1';
@@ -110,6 +113,27 @@ export interface SlideshowParams {
   transition?: 'fade' | 'none';
   /** legenda (.srt) a incorporar */
   subtitle_asset_id?: string;
+}
+
+/** Vídeo automático: tema (ou roteiro) → cenas → imagens → narração → vídeo. */
+export interface AutoVideoParams {
+  mode: 'topic' | 'script';
+  topic?: string;
+  script?: string;
+  split?: 'paragraph' | 'line' | 'sentence';
+  scenes?: number;
+  aspect: Aspect;
+  style?: string;
+  character_id?: string;
+  /** voz do Piper; vazio = sem narração */
+  voice?: string;
+  speed?: number;
+  caption?: 'classic' | 'boxed' | 'big' | 'none';
+  motion?: SlideMotion | 'auto';
+  music_asset_id?: string;
+  music_volume?: number;
+  /** segundos por cena quando não há narração */
+  seconds_per_scene?: number;
 }
 
 export interface AutocutParams {

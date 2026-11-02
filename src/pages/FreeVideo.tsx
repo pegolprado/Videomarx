@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import type { Aspect, JobKind, SlideMotion } from '@shared/jobs';
-import { splitScriptLocally } from '@shared/prompt';
+import { splitScriptLocally, VISUAL_STYLES } from '@shared/prompt';
 import { piperVoiceLabel } from '@shared/voices';
 import { AssetThumb } from '@/components/Assets';
 import { CharacterSelect } from '@/components/CharacterSelect';
@@ -25,6 +25,7 @@ interface Scene {
 }
 
 interface State {
+  style: string;
   script: string;
   aspect: Aspect;
   characterId: string;
@@ -42,7 +43,7 @@ interface State {
 }
 
 const KEY = 'videoGratis.v1';
-const EMPTY: State = { script: '', aspect: '9:16', characterId: '', scenes: [], narrate: true, voice: '', burnSubtitles: true, motion: 'auto', transition: 'fade', videoJobIds: [] };
+const EMPTY: State = { style: 'cinematic', script: '', aspect: '9:16', characterId: '', scenes: [], narrate: true, voice: '', burnSubtitles: true, motion: 'auto', transition: 'fade', videoJobIds: [] };
 
 function load(): State {
   try {
@@ -143,7 +144,7 @@ export default function FreeVideo() {
   }
 
   const genImage = (sc: Scene) =>
-    runFree('ai.image', { engine: 'cloudflare', model: 'gen4_image', character_id: s.characterId || undefined, view: 'scene', prompt: sc.imagePrompt, aspect: s.aspect }).then((j) =>
+    runFree('ai.image', { engine: 'cloudflare', model: 'gen4_image', character_id: s.characterId || undefined, view: 'scene', prompt: [sc.imagePrompt, VISUAL_STYLES.find((v) => v.id === s.style)?.prompt].filter(Boolean).join('. '), aspect: s.aspect }).then((j) =>
       setS((x) => ({ ...x, scenes: x.scenes.map((y) => (y.id === sc.id ? { ...y, imageJobId: j.id, imageAssetId: undefined } : y)) })),
     );
 
@@ -158,12 +159,16 @@ export default function FreeVideo() {
         As imagens ganham movimento de câmera (zoom e deslizamento) e transições; não é vídeo com personagens se mexendo. Cada serviço grátis tem um limite diário: se acabar, a etapa pausa até o dia seguinte, sem cobrar nada.
       </Notice>
 
+      <AutoVideo />
+
+      <h2 className="mt-2 font-display text-xl font-semibold">Passo a passo (controle total de cada cena)</h2>
       <Card className="flex flex-col gap-4">
         <p className="flex items-center gap-2 font-display text-lg font-semibold"><Sparkles className="size-5" /> 1. Roteiro</p>
         <Textarea rows={6} placeholder="Escreva ou cole o texto que será narrado. Cada parágrafo vira uma cena." value={s.script} onChange={(e) => set({ script: e.target.value })} />
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Formato">{(i) => <Select id={i} value={s.aspect} onChange={(e) => set({ aspect: e.target.value as Aspect })} options={[{ value: '9:16', label: 'Vertical 9:16 (Reels, TikTok, Shorts)' }, { value: '16:9', label: 'Horizontal 16:9' }, { value: '1:1', label: 'Quadrado 1:1' }]} />}</Field>
           <Field label="Personagem (opcional)">{(i) => <CharacterSelect id={i} allowNone value={s.characterId} onChange={(v) => set({ characterId: v })} />}</Field>
+          <Field label="Estilo visual (igual em todas as cenas)">{(i) => <Select id={i} value={s.style} onChange={(e) => set({ style: e.target.value })} options={VISUAL_STYLES.map((v) => ({ value: v.id, label: v.label }))} />}</Field>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button disabled={!s.script.trim()} onClick={() => set({ scenes: splitScriptLocally(s.script).map((t) => newScene(t)) })}>Dividir por parágrafos</Button>
@@ -278,5 +283,146 @@ export default function FreeVideo() {
         {s.videoJobIds.map((id) => byId.get(id) && <JobCard key={id} job={byId.get(id)!} />)}
       </Card>
     </div>
+  );
+}
+
+const AUTO_KEY = 'videoGratis.auto.v1';
+
+interface AutoState {
+  mode: 'topic' | 'script';
+  topic: string;
+  script: string;
+  split: 'paragraph' | 'line' | 'sentence';
+  scenes: number;
+  aspect: Aspect;
+  style: string;
+  characterId: string;
+  voice: string;
+  caption: 'classic' | 'boxed' | 'big' | 'none';
+  motion: SlideMotion | 'auto';
+  musicId: string;
+  musicVolume: number;
+  jobIds: string[];
+}
+
+const AUTO_EMPTY: AutoState = {
+  mode: 'topic', topic: '', script: '', split: 'paragraph', scenes: 6, aspect: '9:16', style: 'cinematic', characterId: '', voice: '',
+  caption: 'boxed', motion: 'auto', musicId: '', musicVolume: 0.15, jobIds: [],
+};
+
+/** Vídeo inteiro a partir de um tema (ou roteiro), num clique, processado no servidor. */
+function AutoVideo() {
+  const [a, setA] = useState<AutoState>(() => {
+    try {
+      const raw = localStorage.getItem(AUTO_KEY);
+      return raw ? { ...AUTO_EMPTY, ...(JSON.parse(raw) as Partial<AutoState>) } : AUTO_EMPTY;
+    } catch {
+      return AUTO_EMPTY;
+    }
+  });
+  const [busy, setBusy] = useState(false);
+  const set = (patch: Partial<AutoState>) => setA((x) => ({ ...x, ...patch }));
+  const qc = useQueryClient();
+  const caps = useCapabilities();
+  const gemini = useIntegration('gemini');
+  const cloudflare = useIntegration('cloudflare');
+  const local = useIntegration('local');
+  const voices = useMemo(() => caps.data?.local?.voices ?? [], [caps.data]);
+  const ttsOk = local.ok && !!caps.data?.local?.tts;
+  const music = useAssets({ kind: 'audio' });
+  const jobs = useJobs({ ids: a.jobIds });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(AUTO_KEY, JSON.stringify(a));
+    } catch {
+      /* armazenamento indisponível */
+    }
+  }, [a]);
+  useEffect(() => {
+    if (!a.voice && ttsOk && voices.length) set({ voice: voices[0] });
+  }, [ttsOk, voices, a.voice]);
+
+  const blocker = !cloudflare.ok
+    ? `Imagens grátis (Cloudflare): ${cloudflare.reason?.toLowerCase()}. Configure em Administração → Integrações.`
+    : a.mode === 'topic' && !gemini.ok
+      ? `O modo "tema" usa o Gemini: ${gemini.reason?.toLowerCase()}. Configure em Administração → Integrações, ou use "Roteiro pronto".`
+      : a.mode === 'topic' && !a.topic.trim()
+        ? 'Escreva o tema do vídeo.'
+        : a.mode === 'script' && !a.script.trim()
+          ? 'Escreva o roteiro.'
+          : null;
+
+  async function start() {
+    setBusy(true);
+    try {
+      const j = await runFree('pipeline.auto_video', {
+        mode: a.mode,
+        topic: a.mode === 'topic' ? a.topic : undefined,
+        script: a.mode === 'script' ? a.script : undefined,
+        split: a.split,
+        scenes: a.scenes,
+        aspect: a.aspect,
+        style: a.style,
+        character_id: a.characterId || undefined,
+        voice: ttsOk ? a.voice || undefined : undefined,
+        caption: a.caption,
+        motion: a.motion,
+        music_asset_id: a.musicId || undefined,
+        music_volume: a.musicVolume,
+      });
+      set({ jobIds: [j.id, ...a.jobIds].slice(0, 10) });
+      toast.success('Vídeo em produção no servidor. Pode sair desta página: ele aparece em Tarefas e na Biblioteca.');
+      qc.invalidateQueries({ queryKey: ['jobs'] });
+    } catch (e) {
+      if ((e as Error).message !== 'Cancelado.') toast.error(errorMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card className="flex flex-col gap-4 border-accent/40">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="flex items-center gap-2 font-display text-lg font-semibold"><Wand2 className="size-5 text-accent" /> Vídeo automático em 1 clique</p>
+        <Badge tone="success">Grátis</Badge>
+      </div>
+      <p className="text-sm text-muted">Você dá o tema; o sistema escreve o roteiro, cria uma imagem por cena no mesmo estilo, narra cada cena e monta o vídeo com legenda. Cada imagem fica na tela exatamente o tempo da sua narração.</p>
+      <div className="flex gap-2">
+        <Button size="sm" variant={a.mode === 'topic' ? 'primary' : 'secondary'} onClick={() => set({ mode: 'topic' })}>A partir de um tema</Button>
+        <Button size="sm" variant={a.mode === 'script' ? 'primary' : 'secondary'} onClick={() => set({ mode: 'script' })}>Roteiro pronto</Button>
+      </div>
+      {a.mode === 'topic' ? (
+        <div className="grid gap-3 sm:grid-cols-[1fr_160px]">
+          <Field label="Tema">{(i) => <Textarea id={i} rows={2} maxLength={500} placeholder="ex.: 5 curiosidades sobre o oceano que quase ninguém conhece" value={a.topic} onChange={(e) => set({ topic: e.target.value })} />}</Field>
+          <Field label="Número de cenas">{(i) => <Select id={i} value={String(a.scenes)} onChange={(e) => set({ scenes: Number(e.target.value) })} options={[3, 4, 5, 6, 8, 10, 12].map((n) => ({ value: String(n), label: `${n} cenas` }))} />}</Field>
+        </div>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-[1fr_200px]">
+          <Field label="Roteiro (o que será narrado)">{(i) => <Textarea id={i} rows={5} value={a.script} onChange={(e) => set({ script: e.target.value })} />}</Field>
+          <Field label="Dividir em cenas por">{(i) => <Select id={i} value={a.split} onChange={(e) => set({ split: e.target.value as 'line' })} options={[{ value: 'paragraph', label: 'Parágrafo' }, { value: 'line', label: 'Linha' }, { value: 'sentence', label: 'Frase' }]} />}</Field>
+        </div>
+      )}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <Field label="Formato">{(i) => <Select id={i} value={a.aspect} onChange={(e) => set({ aspect: e.target.value as Aspect })} options={[{ value: '9:16', label: 'Vertical 9:16' }, { value: '16:9', label: 'Horizontal 16:9' }, { value: '1:1', label: 'Quadrado 1:1' }]} />}</Field>
+        <Field label="Estilo visual">{(i) => <Select id={i} value={a.style} onChange={(e) => set({ style: e.target.value })} options={VISUAL_STYLES.map((v) => ({ value: v.id, label: v.label }))} />}</Field>
+        <Field label="Personagem (opcional)">{(i) => <CharacterSelect id={i} allowNone value={a.characterId} onChange={(v) => set({ characterId: v })} />}</Field>
+        <Field label="Narração">
+          {(i) => <Select id={i} value={ttsOk ? a.voice : ''} onChange={(e) => set({ voice: e.target.value })} options={[...(ttsOk ? voices.map((v) => ({ value: v, label: `Voz ${piperVoiceLabel(v)}` })) : []), { value: '', label: ttsOk ? 'Sem narração' : 'Sem narração (voz grátis ainda indisponível)' }]} />}
+        </Field>
+        <Field label="Legenda">{(i) => <Select id={i} value={a.caption} onChange={(e) => set({ caption: e.target.value as 'boxed' })} options={[{ value: 'boxed', label: 'Com fundo escuro' }, { value: 'classic', label: 'Clássica (contorno)' }, { value: 'big', label: 'Grande no centro' }, { value: 'none', label: 'Sem legenda' }]} />}</Field>
+        <Field label="Movimento de câmera">{(i) => <Select id={i} value={a.motion} onChange={(e) => set({ motion: e.target.value as 'auto' })} options={[{ value: 'auto', label: 'Variado' }, { value: 'zoom_in', label: 'Aproximar' }, { value: 'zoom_out', label: 'Afastar' }, { value: 'pan_right', label: 'Deslizar →' }, { value: 'pan_left', label: 'Deslizar ←' }]} />}</Field>
+        <Field label="Música de fundo (sua biblioteca)">
+          {(i) => <Select id={i} value={a.musicId} onChange={(e) => set({ musicId: e.target.value })} options={[{ value: '', label: 'Sem música' }, ...(music.data ?? []).filter((m) => m.probe_status === 'ok').map((m) => ({ value: m.id, label: m.name }))]} />}
+        </Field>
+        {a.musicId && <Field label={`Volume da música: ${Math.round(a.musicVolume * 100)}%`}>{(i) => <input id={i} type="range" min={0.05} max={0.8} step={0.05} value={a.musicVolume} onChange={(e) => set({ musicVolume: Number(e.target.value) })} />}</Field>}
+      </div>
+      <p className="text-xs text-muted">Música: envie em Voz → Importar áudio. Use apenas músicas licenciadas ou sem direitos autorais.</p>
+      {blocker && <Notice tone="warning">{blocker}</Notice>}
+      <Button variant="primary" size="lg" disabled={!!blocker || busy} loading={busy} onClick={start}>
+        <Wand2 className="size-4" /> Criar vídeo automático (grátis)
+      </Button>
+      {jobs.data?.map((j) => <JobCard key={j.id} job={j} />)}
+    </Card>
   );
 }

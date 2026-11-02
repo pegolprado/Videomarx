@@ -90,5 +90,9 @@ describe('montagem e corte automático', () => {
     expect(clip.duration).toBeCloseTo(3, 0);
     await frameAt(p('clip.mp4'), p('f.jpg'), 0, 320);
     expect((await probe(p('f.jpg'))).width).toBe(320);
+    // miniatura de imagem parada (referências de personagem, imagens geradas)
+    await ffmpeg(['-y', '-f', 'lavfi', '-i', 'color=c=blue:s=800x600:d=1', '-frames:v', '1', '-update', '1', p('foto.jpg')]);
+    await frameAt(p('foto.jpg'), p('foto-thumb.jpg'), 0, 240);
+    expect((await probe(p('foto-thumb.jpg'))).width).toBe(240);
   }, 60_000);
 });

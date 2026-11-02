@@ -269,3 +269,20 @@ export function slideshowFilter(
   }
   return { filter: parts.join(';'), duration: total - td * (n - 1) };
 }
+
+/**
+ * Duração de cada imagem para que a imagem troque exatamente quando a
+ * narração da cena seguinte começa: com transição de td segundos, cada imagem
+ * (menos a última) dura o áudio dela + td. Total do vídeo = soma dos áudios.
+ */
+export function syncedSlideDurations(audioSeconds: number[], td: number): number[] {
+  return audioSeconds.map((a, i) => Math.round((Math.max(a, 0.8) + (i < audioSeconds.length - 1 ? td : 0)) * 1000) / 1000);
+}
+
+/** Estilos de legenda (ASS force_style do filtro subtitles). */
+export const CAPTION_STYLES = {
+  classic: 'FontName=DejaVu Sans,FontSize=16,Bold=1,Outline=2,Shadow=0,MarginV=60',
+  boxed: 'FontName=DejaVu Sans,FontSize=15,Bold=1,BorderStyle=3,Outline=6,BackColour=&H99000000,Shadow=0,MarginV=70',
+  big: 'FontName=DejaVu Sans,FontSize=22,Bold=1,Outline=3,Shadow=1,Alignment=5',
+} as const;
+export type CaptionStyle = keyof typeof CAPTION_STYLES | 'none';

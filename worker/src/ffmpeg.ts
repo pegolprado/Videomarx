@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { access } from 'node:fs/promises';
 import { JobError } from './errors.ts';
 
 export interface RunResult {
@@ -84,7 +85,12 @@ export function parseProbe(json: string): ProbeInfo {
 
 /** Quadro em JPEG num instante (miniaturas e prévias). */
 export async function frameAt(input: string, output: string, seconds: number, width = 480): Promise<void> {
-  await ffmpeg(['-y', '-ss', Math.max(0, seconds).toFixed(3), '-i', input, '-frames:v', '1', '-vf', `scale=${width}:-2`, '-q:v', '4', output]);
+  // "-ss 0" numa imagem parada não produz nenhum quadro: só busca o instante quando é > 0
+  const seek = seconds > 0 ? ['-ss', seconds.toFixed(3)] : [];
+  await ffmpeg(['-y', ...seek, '-i', input, '-frames:v', '1', '-vf', `scale=${width}:-2`, '-q:v', '4', output]);
+  await access(output).catch(() => {
+    throw new JobError('ffmpeg_failed', 'Não foi possível gerar a miniatura do arquivo.');
+  });
 }
 
 /**

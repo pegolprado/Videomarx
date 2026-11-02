@@ -144,3 +144,42 @@ export function splitScriptLocally(script: string, maxChars = 220): string[] {
   }
   return scenes;
 }
+
+/**
+ * Estilos visuais aplicados a TODAS as imagens de um vídeo (mesma "cara" do
+ * início ao fim). Ideia inspirada no Pixelle-Video (Apache-2.0); textos nossos.
+ */
+export const VISUAL_STYLES: { id: string; label: string; prompt: string }[] = [
+  { id: 'cinematic', label: 'Cinematográfico realista', prompt: 'cinematic photo, realistic, dramatic soft lighting, shallow depth of field, rich colors' },
+  { id: 'cartoon3d', label: 'Animação 3D', prompt: '3D animated movie style, soft global illumination, expressive characters, vibrant colors' },
+  { id: 'anime', label: 'Anime', prompt: 'anime illustration, clean line art, cel shading, vivid colors' },
+  { id: 'watercolor', label: 'Aquarela', prompt: 'watercolor painting, soft washes, paper texture, gentle pastel palette' },
+  { id: 'line', label: 'Desenho de linhas', prompt: 'minimalist black ink line drawing on white background, simple hand-drawn sketch' },
+  { id: 'comic', label: 'Quadrinhos', prompt: 'comic book illustration, bold outlines, halftone shading, dynamic composition' },
+  { id: 'minimal', label: 'Minimalista', prompt: 'minimalist flat illustration, geometric shapes, clean composition, soft colors' },
+  { id: 'neon', label: 'Neon noturno', prompt: 'neon cyberpunk night scene, glowing lights, reflections, moody atmosphere' },
+];
+
+export function styledImagePrompt(scenePrompt: string, styleId?: string, character?: CharacterLike): string {
+  const style = VISUAL_STYLES.find((s) => s.id === styleId);
+  const parts = [scenePrompt.trim()];
+  if (character) parts.unshift(characterDescriptor(character));
+  if (style) parts.push(style.prompt);
+  parts.push('no text, no watermark');
+  return clampPrompt(parts.filter(Boolean).join('. '));
+}
+
+/** Divisão de roteiro fixo: por parágrafo, por linha ou por frase. */
+export function splitNarration(script: string, mode: 'paragraph' | 'line' | 'sentence'): string[] {
+  const clean = script.replace(/\r/g, '');
+  if (mode === 'line') return clean.split('\n').map((l) => l.trim()).filter(Boolean);
+  if (mode === 'sentence') {
+    // quebra de linha também encerra a frase
+    return clean
+      .split(/\n+/)
+      .flatMap((line) => line.replace(/\s+/g, ' ').match(/[^.!?…]+[.!?…]*/g) ?? [])
+      .map((x) => x.trim())
+      .filter((x) => x.length > 1);
+  }
+  return clean.split(/\n\s*\n/).map((p) => p.replace(/\s+/g, ' ').trim()).filter(Boolean);
+}

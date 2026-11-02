@@ -20,7 +20,7 @@ beforeAll(async () => {
   dir = mkdtempSync(join(tmpdir(), 'videoai-free-'));
   mkdirSync(join(dir, 'work'));
   for (const [i, color] of ['red', 'green', 'blue'].entries()) {
-    await ffmpeg(['-y', '-f', 'lavfi', '-i', `color=c=${color}:s=1024x1024`, '-frames:v', '1', join(dir, `img${i}.jpg`)]);
+    await ffmpeg(['-y', '-f', 'lavfi', '-i', `color=c=${color}:s=1024x1024:d=1`, '-frames:v', '1', '-update', '1', join(dir, `img${i}.jpg`)]);
   }
   await ffmpeg(['-y', '-f', 'lavfi', '-i', 'sine=frequency=330:duration=6', '-c:a', 'libmp3lame', join(dir, 'voz.mp3')]);
 }, 60_000);

@@ -22,6 +22,9 @@ Nunca executado contra os provedores neste ambiente (sem chaves e sem acesso de 
 ## Opções gratuitas (aguardando as chaves grátis para o primeiro teste real)
 - Roteiros e divisão em cenas com **Google Gemini** (plano gratuito), imagens com **Cloudflare Workers AI** (FLUX.1 schnell, cota diária gratuita) e **Vídeo grátis**: imagens animadas + narração + legenda (FFmpeg). As chaves são coladas em Administração → Integrações (cofre no banco). Gemini e Cloudflare testados com respostas simuladas; o vídeo animado foi gerado de verdade com FFmpeg nos testes.
 
+- **Vídeo automático em 1 clique** (página Vídeo grátis): testado de ponta a ponta com FFmpeg real e provedores simulados.
+- Corrigido: miniaturas de imagens paradas (envios e imagens geradas) não eram criadas.
+
 ## Pendente (aparece bloqueado na interface)
 - Modos A (troca de rosto) e B (cabeça/rosto): falta provedor com API e licença comercial.
 - Detecção/segmentação automática de pessoas (hoje o usuário confirma pela prévia).

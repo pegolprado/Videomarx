@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { availableModes, integrationStatus, qualityWarnings, TRANSFORM_MODES } from './transform';
-import { characterDescriptor, characterImagePrompt, clampPrompt, scenePrompt, splitScriptLocally } from './prompt';
+import { characterDescriptor, characterImagePrompt, clampPrompt, scenePrompt, splitNarration, splitScriptLocally, styledImagePrompt } from './prompt';
 import { estimateCues, formatSrtTime, parseSrt, toSrt } from './srt';
-import { atempoChain, buildExportArgs, concatFilter, fitFilter, slideDurations, slideshowFilter, speechSegments, targetSize } from './ffmpeg';
+import { atempoChain, buildExportArgs, concatFilter, fitFilter, slideDurations, slideshowFilter, speechSegments, syncedSlideDurations, targetSize } from './ffmpeg';
 import { ratioFor } from './ratios';
 import { estimateFileSizeBytes, formatDuration } from './format';
 import type { Capabilities } from './capabilities';
@@ -177,5 +177,27 @@ describe('vídeo animado', () => {
     expect(r.filter.match(/xfade/g)).toHaveLength(2);
     expect(r.filter).toContain('s=720x1280');
     expect(slideshowFilter([3], '1:1', 720).filter).toContain('[s0]null[vout]');
+  });
+});
+
+describe('vídeo automático', () => {
+  it('imagem troca quando a narração da próxima cena começa', () => {
+    const d = syncedSlideDurations([3, 5, 2], 0.6);
+    expect(d).toEqual([3.6, 5.6, 2]);
+    // início de cada cena no vídeo = soma dos áudios anteriores
+    expect(d[0] - 0.6).toBeCloseTo(3, 5);
+    expect(d.reduce((a, b) => a + b, 0) - 0.6 * 2).toBeCloseTo(10, 5);
+  });
+  it('estilo e personagem entram em todas as imagens', () => {
+    const p = styledImagePrompt('a cat on a roof', 'anime', { name: 'Luna', kind: 'anime', description: 'girl', appearance: {} });
+    expect(p).toContain('anime illustration');
+    expect(p).toContain('a cat on a roof');
+    expect(p).toContain('no text');
+  });
+  it('divide por parágrafo, linha ou frase', () => {
+    const t = 'Primeira linha. Segunda frase!\nTerceira linha\n\nNovo parágrafo.';
+    expect(splitNarration(t, 'paragraph')).toHaveLength(2);
+    expect(splitNarration(t, 'line')).toEqual(['Primeira linha. Segunda frase!', 'Terceira linha', 'Novo parágrafo.']);
+    expect(splitNarration(t, 'sentence')).toHaveLength(4);
   });
 });

@@ -88,3 +88,22 @@ begin
   raise notice 'motor próprio ok';
 end $$;
 rollback;
+
+-- vídeo automático
+begin;
+do $$
+declare v_u uuid := tests.create_user('auto@teste.com'); v_est jsonb; v_job public.jobs;
+begin
+  perform tests.login(v_u);
+  v_est := public.estimate_job('pipeline.auto_video', '{"mode":"topic","topic":"x","aspect":"9:16"}', '{}');
+  perform tests.assert_eq((v_est ->> 'credits')::int, 0, 'vídeo automático grátis');
+  v_job := public.create_job('pipeline.auto_video', '{"mode":"topic","topic":"Curiosidades do mar","aspect":"9:16"}', '{}', null, 'auto-video-01', 0);
+  perform tests.assert_eq(v_job.status, 'queued', 'na fila');
+  perform tests.logout();
+  update public.integrations set enabled = false where id = 'cloudflare';
+  perform tests.login(v_u);
+  perform tests.assert_fails($q$select public.create_job('pipeline.auto_video', '{"mode":"topic","topic":"x","aspect":"9:16"}', '{}', null, 'auto-video-02', 0)$q$, 'bloqueado se a Cloudflare for desabilitada');
+  perform tests.logout();
+  raise notice 'vídeo automático ok';
+end $$;
+rollback;

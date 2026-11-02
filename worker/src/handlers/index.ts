@@ -3,6 +3,7 @@ import type { Handler } from '../types.ts';
 import { autocutHandler, concatHandler, exportHandler, probeHandler, slideshowHandler, trimHandler } from './media.ts';
 import { imageHandler, textHandler, transformHandler, ttsHandler, videoHandler } from './ai.ts';
 import { localTtsHandler, transcribeHandler } from './local.ts';
+import { autoVideoHandler } from './pipeline.ts';
 
 export const HANDLERS: Record<JobKind, Handler> = {
   'media.probe': probeHandler,
@@ -18,6 +19,7 @@ export const HANDLERS: Record<JobKind, Handler> = {
   'ai.text': textHandler,
   'local.transcribe': transcribeHandler,
   'local.tts': localTtsHandler,
+  'pipeline.auto_video': autoVideoHandler,
 };
 
 /** Só busca na fila o que este worker consegue executar. */
@@ -41,5 +43,7 @@ export function supportedKinds(caps: WorkerCaps): JobKind[] {
   // motor próprio: dependem também do FFmpeg (conversão de áudio)
   if (caps.local_transcribe && caps.ffmpeg) kinds.push('local.transcribe');
   if (caps.local_tts && caps.ffmpeg) kinds.push('local.tts');
+  // vídeo automático: imagens grátis da Cloudflare + FFmpeg (Gemini e voz são opcionais conforme o modo)
+  if (caps.cloudflare && caps.ffmpeg) kinds.push('pipeline.auto_video');
   return kinds;
 }

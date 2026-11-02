@@ -53,7 +53,7 @@ export async function saveOutput(
   } as Partial<AssetRow> & Pick<AssetRow, 'kind' | 'category' | 'name' | 'path'>);
 }
 
-async function fetchInput(ctx: JobContext, asset: AssetRow, label = 'in'): Promise<string> {
+export async function fetchInput(ctx: JobContext, asset: AssetRow, label = 'in'): Promise<string> {
   const ext = asset.path.split('.').pop() || 'bin';
   const local = join(ctx.workDir, `${label}-${asset.id}.${ext}`);
   await ctx.storage.download(asset.path, local);

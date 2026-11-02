@@ -25,6 +25,11 @@ Quando estiver pronto, o worker informa `local_transcribe`, `local_tts` e `local
 | Imagens | Cloudflare Workers AI — FLUX.1 schnell (Apache 2.0) | 10.000 neurons/dia; sem imagens de referência (usa só a descrição do personagem) |
 | Vídeo animado | FFmpeg no nosso servidor | sem limite |
 
+## Vídeo automático (1 clique)
+Tema (Gemini) ou roteiro pronto → cenas → uma imagem por cena no mesmo estilo visual (Cloudflare) → narração por cena (Piper) → vídeo com movimento de câmera, legenda e música (FFmpeg). Cada imagem fica na tela exatamente o tempo da narração da sua cena. Roteiro e imagens já gerados ficam salvos no estado da tarefa: numa retomada, nada é refeito (a cota grátis não é gasta de novo).
+
+O fluxo foi inspirado no projeto aberto **Pixelle-Video** (AIDC-AI, licença Apache-2.0). Nenhum código dele foi copiado; aproveitamos as ideias de fluxo (tema → vídeo, duração pela narração, estilo visual fixo, música de fundo, modos de divisão do roteiro).
+
 ## Próximas fases
 - Fase 2: vídeo e imagem com modelos abertos (Wan 2.2, Wan-Animate, FLUX.1 schnell) numa GPU alugada por uso.
 - Fase 3: treinamento de personagens (LoRA) para consistência própria.
