@@ -19,6 +19,9 @@ Nunca executado contra os provedores neste ambiente (sem chaves e sem acesso de 
 ## Motor próprio (Fase 1) — instalado pela atualização automática, aguardando o primeiro teste real
 - Legendas automáticas a partir da fala (Whisper) e voz em português (Piper), sem custo por uso. Integração testada com programas simulados; o Whisper e o Piper de verdade só rodam no servidor. Ver `docs/MOTOR_PROPRIO.md`.
 
+## Opções gratuitas (aguardando as chaves grátis para o primeiro teste real)
+- Roteiros e divisão em cenas com **Google Gemini** (plano gratuito), imagens com **Cloudflare Workers AI** (FLUX.1 schnell, cota diária gratuita) e **Vídeo grátis**: imagens animadas + narração + legenda (FFmpeg). As chaves são coladas em Administração → Integrações (cofre no banco). Gemini e Cloudflare testados com respostas simuladas; o vídeo animado foi gerado de verdade com FFmpeg nos testes.
+
 ## Pendente (aparece bloqueado na interface)
 - Modos A (troca de rosto) e B (cabeça/rosto): falta provedor com API e licença comercial.
 - Detecção/segmentação automática de pessoas (hoje o usuário confirma pela prévia).

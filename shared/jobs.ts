@@ -6,6 +6,7 @@ export const JOB_KINDS = [
   'media.export',
   'media.concat',
   'media.autocut',
+  'media.slideshow',
   'ai.image',
   'ai.video',
   'ai.transform',
@@ -36,6 +37,7 @@ export const KIND_LABEL: Record<JobKind, string> = {
   'media.export': 'Exportação',
   'media.concat': 'Montagem da sequência',
   'media.autocut': 'Corte automático de pausas',
+  'media.slideshow': 'Vídeo animado',
   'ai.image': 'Geração de imagem',
   'ai.video': 'Geração de vídeo',
   'ai.transform': 'Transformação de vídeo',
@@ -45,12 +47,13 @@ export const KIND_LABEL: Record<JobKind, string> = {
   'local.tts': 'Voz (motor próprio)',
 };
 
-export const KIND_PROVIDER: Record<JobKind, 'ffmpeg' | 'runway' | 'anthropic' | 'local'> = {
+export const KIND_PROVIDER: Record<JobKind, 'ffmpeg' | 'runway' | 'anthropic' | 'local' | 'gemini' | 'cloudflare'> = {
   'media.probe': 'ffmpeg',
   'media.trim': 'ffmpeg',
   'media.export': 'ffmpeg',
   'media.concat': 'ffmpeg',
   'media.autocut': 'ffmpeg',
+  'media.slideshow': 'ffmpeg',
   'ai.image': 'runway',
   'ai.video': 'runway',
   'ai.transform': 'runway',
@@ -94,6 +97,21 @@ export interface ConcatParams {
   music_volume?: number;
 }
 
+export type SlideMotion = 'zoom_in' | 'zoom_out' | 'pan_left' | 'pan_right';
+
+/** Vídeo a partir de imagens: movimento de câmera, transições, narração e legenda. */
+export interface SlideshowParams {
+  aspect: Aspect;
+  resolution: 720 | 1080;
+  /** segundos por imagem quando não há narração */
+  seconds_per_image?: number;
+  /** movimento fixo ou "auto" (alterna) */
+  motion?: SlideMotion | 'auto';
+  transition?: 'fade' | 'none';
+  /** legenda (.srt) a incorporar */
+  subtitle_asset_id?: string;
+}
+
 export interface AutocutParams {
   /** nível abaixo do qual o áudio é considerado silêncio (dB) */
   noise_db?: number;
@@ -106,6 +124,8 @@ export interface AutocutParams {
 export type ImageView = 'portrait' | 'front' | 'side' | 'full_body' | 'expression' | 'pose' | 'scene' | 'cover' | 'custom';
 
 export interface ImageParams {
+  /** cloudflare = FLUX.1 schnell na cota grátis; padrão = Runway */
+  engine?: 'runway' | 'cloudflare';
   model: 'gen4_image' | 'gen4_image_turbo';
   prompt: string;
   view?: ImageView;
@@ -178,6 +198,8 @@ export interface LocalTtsParams {
 export type TextTask = 'social_pack' | 'split_script' | 'scene_prompt' | 'character_prompt';
 
 export interface TextParams {
+  /** gemini = plano grátis do Google; padrão = Claude */
+  engine?: 'anthropic' | 'gemini';
   task: TextTask;
   input: Record<string, unknown>;
   character_id?: string;

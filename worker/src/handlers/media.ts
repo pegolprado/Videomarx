@@ -2,8 +2,8 @@
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { readFile, writeFile } from 'node:fs/promises';
-import { buildExportArgs, concatFilter, selectSegmentsFilter, speechSegments } from '../../../shared/ffmpeg.ts';
-import type { AutocutParams, ConcatParams, ExportParams } from '../../../shared/jobs.ts';
+import { buildExportArgs, concatFilter, escapeFilterPath, selectSegmentsFilter, slideDurations, slideshowFilter, speechSegments } from '../../../shared/ffmpeg.ts';
+import type { AutocutParams, ConcatParams, ExportParams, SlideshowParams } from '../../../shared/jobs.ts';
 import { parseSrt } from '../../../shared/srt.ts';
 import { ffmpeg, frameAt, probe, type ProbeInfo } from '../ffmpeg.ts';
 import { JobError } from '../errors.ts';
@@ -254,4 +254,49 @@ export const autocutHandler: Handler = async (ctx) => {
     metadata: { source_asset_id: src.id, segments, removed_seconds: Math.round(removed * 10) / 10, synthetic: isSynthetic(src) },
   });
   return { outputs: [asset.id], result: { segments, removed_seconds: removed }, actualUsd: null };
+};
+
+/** Vídeo a partir de imagens: movimento de câmera, transições, narração e legenda. */
+export const slideshowHandler: Handler = async (ctx) => {
+  const p = ctx.job.params as unknown as SlideshowParams;
+  const aspect = p.aspect === '16:9' || p.aspect === '1:1' ? p.aspect : '9:16';
+  const resolution = p.resolution === 1080 ? 1080 : 720;
+  const ordered = ctx.job.input_asset_ids.map((id) => ctx.inputs.find((a) => a.id === id)!).filter(Boolean);
+  const images = ordered.filter((a) => a.kind === 'image');
+  const audio = ordered.find((a) => a.kind === 'audio') ?? null;
+  if (!images.length) throw new JobError('invalid_params', 'Escolha ao menos uma imagem.');
+  const td = p.transition === 'none' ? 0 : 0.6;
+  const durations = slideDurations(images.length, { audioSeconds: audio?.duration_s ? Number(audio.duration_s) : null, secondsPerImage: p.seconds_per_image, transition: td });
+  const plan = slideshowFilter(durations, aspect, resolution, p.motion ?? 'auto', td ? 'fade' : 'none', td || 0.6);
+
+  const args = ['-y'];
+  for (const img of images) args.push('-i', await fetchInput(ctx, img));
+  let filter = plan.filter;
+  let videoLabel = '[vout]';
+  if (p.subtitle_asset_id) {
+    const sub = await ctx.loadAsset(p.subtitle_asset_id);
+    if (sub.user_id !== ctx.job.user_id || sub.kind !== 'subtitle') throw new JobError('invalid_params', 'Legenda inválida.');
+    const subPath = await fetchInput(ctx, sub, 'sub');
+    filter += `;[vout]subtitles='${escapeFilterPath(subPath)}':force_style='FontSize=16,Outline=2,MarginV=60'[vsub]`;
+    videoLabel = '[vsub]';
+  }
+  if (audio) args.push('-i', await fetchInput(ctx, audio, 'audio'));
+  const filterFile = join(ctx.workDir, 'slideshow.txt');
+  await writeFile(filterFile, filter);
+  const out = join(ctx.workDir, 'slideshow.mp4');
+  await ctx.progress(0.2, undefined, undefined, 'Animando as imagens');
+  const synthetic = isSynthetic(...ordered);
+  const enc = ['-filter_complex_script', filterFile, '-map', videoLabel];
+  if (audio) enc.push('-map', `${images.length}:a`, '-c:a', 'aac', '-b:a', '160k');
+  else enc.push('-an');
+  enc.push('-c:v', 'libx264', '-preset', 'veryfast', '-crf', '21', '-r', '30', '-t', plan.duration.toFixed(3), '-movflags', '+faststart',
+    '-metadata', `comment=${synthetic ? SYNTHETIC_NOTE : 'Criado com VideoAI Studio'}`, out);
+  await ffmpeg([...args, ...enc]);
+  const asset = await saveOutput(ctx, out, {
+    name: `Vídeo animado (${images.length} cenas)`,
+    category: 'generated',
+    ext: 'mp4',
+    metadata: { source_asset_ids: ctx.job.input_asset_ids, slideshow: { ...p, aspect, resolution }, synthetic },
+  });
+  return { outputs: [asset.id], actualUsd: null };
 };

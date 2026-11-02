@@ -43,6 +43,12 @@ export default function CharacterEditor() {
   const [extra, setExtra] = useState('');
   const [jobIds, setJobIds] = useState<string[]>([]);
   const runway = useIntegration('runway');
+  const cloudflare = useIntegration('cloudflare');
+  const [imgEngine, setImgEngine] = useState<'cloudflare' | 'runway'>('cloudflare');
+  useEffect(() => {
+    if (!cloudflare.ok && runway.ok) setImgEngine('runway');
+  }, [cloudflare.ok, runway.ok]);
+  const imgActive = imgEngine === 'cloudflare' ? cloudflare : runway;
 
   const char = useQuery({
     queryKey: ['character', id],
@@ -259,7 +265,15 @@ export default function CharacterEditor() {
                 <p className="flex items-center gap-2 text-sm font-medium">
                   <Wand2 className="size-4" /> Gerar imagens do personagem
                 </p>
-                <IntegrationGate provider="runway" feature="Geração de imagens" />
+                <Select
+                  value={imgEngine}
+                  onChange={(e) => setImgEngine(e.target.value as 'cloudflare')}
+                  options={[
+                    { value: 'cloudflare', label: `Grátis — FLUX via Cloudflare${cloudflare.ok ? '' : ' (não configurado)'}` },
+                    { value: 'runway', label: `Runway — pago, mais fiel às referências${runway.ok ? '' : ' (não configurado)'}` },
+                  ]}
+                />
+                <IntegrationGate provider={imgEngine} feature="Geração de imagens" />
                 <div className="flex flex-wrap gap-1.5">
                   {VIEWS.map((v) => (
                     <button key={v.view} onClick={() => setView(v.view)} className={`rounded-lg px-2.5 py-1 text-xs ${view === v.view ? 'bg-accent text-white' : 'bg-surface-2 text-muted'}`}>
@@ -271,8 +285,8 @@ export default function CharacterEditor() {
                 <Field label="Detalhes extras (opcional)">{(i) => <Input id={i} placeholder="ex.: sorrindo, roupa de inverno" value={extra} onChange={(e) => setExtra(e.target.value)} />}</Field>
                 <CostConfirm
                   kind="ai.image"
-                  params={{ model: 'gen4_image', character_id: id, view, prompt: extra, aspect: view === 'portrait' ? '1:1' : '9:16' }}
-                  disabled={!runway.ok ? runway.reason : false}
+                  params={{ engine: imgEngine, model: 'gen4_image', character_id: id, view, prompt: extra, aspect: view === 'portrait' ? '1:1' : '9:16' }}
+                  disabled={!imgActive.ok ? imgActive.reason : false}
                   label="Gerar imagem"
                   onCreated={(j) => setJobIds((ids) => [j.id, ...ids])}
                 />

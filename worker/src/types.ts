@@ -3,7 +3,8 @@ import type { JobKind } from '../../shared/jobs.ts';
 import type { Config } from './config.ts';
 import type { Storage } from './storage.ts';
 import type { RunwayAdapter } from './providers/runway.ts';
-import type { TextAdapter } from './providers/anthropic.ts';
+import type { TextGenerator } from './providers/anthropic.ts';
+import type { CloudflareAI } from './providers/cloudflare.ts';
 
 export interface JobRow {
   id: string;
@@ -80,7 +81,12 @@ export interface JobContext {
   settings: Settings;
   storage: Storage;
   runway?: RunwayAdapter;
-  text?: TextAdapter;
+  /** Claude */
+  text?: TextGenerator;
+  /** Gemini (plano grátis) */
+  gemini?: TextGenerator;
+  /** Cloudflare Workers AI (cota grátis) */
+  cloudflare?: CloudflareAI;
   workDir: string;
   inputs: AssetRow[];
   /** registra progresso/estado (estado sobrevive a quedas do worker) */

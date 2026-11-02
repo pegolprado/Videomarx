@@ -9,7 +9,7 @@ import { VIDEO_MODELS, ratioFor } from '@shared/ratios';
 import { AssetGrid } from '@/components/Assets';
 import { CharacterSelect } from '@/components/CharacterSelect';
 import { CostConfirm } from '@/components/CostConfirm';
-import { IntegrationGate, useIntegration } from '@/components/IntegrationGate';
+import { IntegrationGate, useIntegration, useTextEngine } from '@/components/IntegrationGate';
 import { JobCard } from '@/components/JobCard';
 import { Badge, Button, Card, Checkbox, Field, Input, Notice, PageHeader, Select, Textarea } from '@/components/ui';
 import { useAssets, useCharacters, useJobs } from '@/lib/hooks';
@@ -46,7 +46,7 @@ export default function Generate() {
   const chars = useCharacters();
   const character = chars.data?.find((c) => c.id === characterId);
   const runway = useIntegration('runway');
-  const anthropic = useIntegration('anthropic');
+  const textEngine = useTextEngine();
   const spec = VIDEO_MODELS.find((m) => m.id === model)!;
   const usesImage = useCharImage && !!character?.primary_image_id;
   const ratio = ratioFor(model, aspect, !usesImage);
@@ -153,16 +153,16 @@ export default function Generate() {
             Dividir por parágrafos (grátis)
           </Button>
         </div>
-        {anthropic.ok ? (
+        {textEngine.ok ? (
           <CostConfirm
             kind="ai.text"
-            params={{ task: 'split_script', character_id: characterId || undefined, input: { roteiro: script, formato: aspect, duracao_por_cena: spec.durations.join('/') + ' s' } }}
+            params={{ task: 'split_script', engine: textEngine.engine, character_id: characterId || undefined, input: { roteiro: script, formato: aspect, duracao_por_cena: spec.durations.join('/') + ' s' } }}
             disabled={!script.trim() ? 'Cole um roteiro.' : false}
-            label="Dividir com IA (Claude)"
+            label={`Dividir com IA (${textEngine.label})`}
             onCreated={(j: Job) => setSplitJob(j.id)}
           />
         ) : (
-          <p className="text-xs text-muted">Divisão inteligente com IA: {anthropic.reason?.toLowerCase()}.</p>
+          <p className="text-xs text-muted">Divisão inteligente com IA: {textEngine.reason?.toLowerCase()}.</p>
         )}
         {split.data?.map((j) => j.status !== 'succeeded' && <JobCard key={j.id} job={j} showOutputs={false} />)}
       </Card>

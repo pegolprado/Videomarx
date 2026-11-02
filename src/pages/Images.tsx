@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { Aspect } from '@shared/jobs';
 import { AssetGrid } from '@/components/Assets';
 import { CharacterSelect } from '@/components/CharacterSelect';
@@ -28,11 +28,17 @@ export default function Images() {
   const jobs = useJobs({ ids: jobIds });
   const gallery = useAssets({ kind: 'image', categories: ['generated', 'reference'], limit: 40 });
   const runway = useIntegration('runway');
+  const cloudflare = useIntegration('cloudflare');
+  const [engine, setEngine] = useState<'cloudflare' | 'runway'>('cloudflare');
+  useEffect(() => {
+    if (!cloudflare.ok && runway.ok) setEngine('runway');
+  }, [cloudflare.ok, runway.ok]);
+  const active = engine === 'cloudflare' ? cloudflare : runway;
 
   return (
     <div className="flex flex-col gap-5">
       <PageHeader title="Imagens de referência" subtitle="Retratos, poses, roupas, cenários, capas e miniaturas — salvos na biblioteca do personagem." />
-      <IntegrationGate provider="runway" feature="Geração de imagens" />
+      <IntegrationGate provider={engine} feature={engine === 'cloudflare' ? 'Imagens grátis (Cloudflare)' : 'Imagens (Runway)'} />
       <Card className="grid gap-4 md:grid-cols-2">
         <Field label="Personagem (opcional)" hint="Com personagem, as imagens de referência dele são usadas para manter a identidade.">
           {(i) => <CharacterSelect id={i} allowNone value={characterId} onChange={setCharacterId} />}
@@ -44,15 +50,33 @@ export default function Images() {
           </Field>
         </div>
         <Field label="Proporção">{(i) => <Select id={i} value={aspect} onChange={(e) => setAspect(e.target.value as Aspect)} options={[{ value: '9:16', label: 'Vertical 9:16' }, { value: '16:9', label: 'Horizontal 16:9' }, { value: '1:1', label: 'Quadrado 1:1' }]} />}</Field>
-        <Field label="Modelo">
-          {(i) => <Select id={i} value={model} onChange={(e) => setModel(e.target.value)} options={[{ value: 'gen4_image', label: 'Runway Gen-4 Image' }, { value: 'gen4_image_turbo', label: 'Runway Gen-4 Image Turbo (exige personagem com referência)' }]} />}
+        <Field label="Motor de imagem">
+          {(i) => (
+            <Select
+              id={i}
+              value={engine === 'cloudflare' ? 'cloudflare' : model}
+              onChange={(e) => {
+                if (e.target.value === 'cloudflare') setEngine('cloudflare');
+                else {
+                  setEngine('runway');
+                  setModel(e.target.value);
+                }
+              }}
+              options={[
+                { value: 'cloudflare', label: `FLUX.1 schnell via Cloudflare — grátis (cota diária)${cloudflare.ok ? '' : ' — não configurado'}` },
+                { value: 'gen4_image', label: `Runway Gen-4 Image — pago, usa as referências do personagem${runway.ok ? '' : ' — não configurado'}` },
+                { value: 'gen4_image_turbo', label: 'Runway Gen-4 Image Turbo — pago (exige personagem com referência)' },
+              ]}
+            />
+          )}
         </Field>
-        {model === 'gen4_image_turbo' && !characterId && <div className="md:col-span-2"><Notice tone="warning">O Turbo exige um personagem com imagem de referência.</Notice></div>}
+        {engine === 'cloudflare' && characterId && <div className="md:col-span-2"><Notice>O motor grátis usa só a descrição do personagem (não as imagens de referência), então a aparência pode variar entre imagens.</Notice></div>}
+        {engine === 'runway' && model === 'gen4_image_turbo' && !characterId && <div className="md:col-span-2"><Notice tone="warning">O Turbo exige um personagem com imagem de referência.</Notice></div>}
         <div className="md:col-span-2">
           <CostConfirm
             kind="ai.image"
-            params={{ model, character_id: characterId || undefined, view, prompt, aspect }}
-            disabled={!runway.ok ? runway.reason : !prompt.trim() && !characterId ? 'Descreva a imagem.' : model === 'gen4_image_turbo' && !characterId ? 'Escolha um personagem.' : false}
+            params={{ engine, model, character_id: characterId || undefined, view, prompt, aspect }}
+            disabled={!active.ok ? active.reason : !prompt.trim() && !characterId ? 'Descreva a imagem.' : engine === 'runway' && model === 'gen4_image_turbo' && !characterId ? 'Escolha um personagem.' : false}
             label="Gerar imagem"
             onCreated={(j) => setJobIds((ids) => [j.id, ...ids])}
           />

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { availableModes, integrationStatus, qualityWarnings, TRANSFORM_MODES } from './transform';
 import { characterDescriptor, characterImagePrompt, clampPrompt, scenePrompt, splitScriptLocally } from './prompt';
 import { estimateCues, formatSrtTime, parseSrt, toSrt } from './srt';
-import { atempoChain, buildExportArgs, concatFilter, fitFilter, speechSegments, targetSize } from './ffmpeg';
+import { atempoChain, buildExportArgs, concatFilter, fitFilter, slideDurations, slideshowFilter, speechSegments, targetSize } from './ffmpeg';
 import { ratioFor } from './ratios';
 import { estimateFileSizeBytes, formatDuration } from './format';
 import type { Capabilities } from './capabilities';
@@ -160,5 +160,22 @@ describe('vozes do motor próprio', () => {
   it('nome amigável', () => {
     expect(piperVoiceLabel('pt_BR-faber-medium')).toBe('Faber (pt-BR, média)');
     expect(piperVoiceLabel('estranho')).toBe('estranho');
+  });
+});
+
+describe('vídeo animado', () => {
+  it('divide a narração entre as imagens', () => {
+    const d = slideDurations(3, { audioSeconds: 12, transition: 0.6 });
+    expect(d.reduce((a, b) => a + b, 0) - 0.6 * 2).toBeCloseTo(12, 2);
+    expect(slideDurations(2, { secondsPerImage: 100, transition: 0.6 })).toEqual([20, 20]);
+    expect(slideDurations(0, { transition: 0.6 })).toEqual([]);
+  });
+  it('alterna movimentos e une com fade', () => {
+    const r = slideshowFilter([4, 4, 4], '9:16', 720);
+    expect(r.duration).toBeCloseTo(10.8, 3);
+    expect(r.filter).toContain('zoompan');
+    expect(r.filter.match(/xfade/g)).toHaveLength(2);
+    expect(r.filter).toContain('s=720x1280');
+    expect(slideshowFilter([3], '1:1', 720).filter).toContain('[s0]null[vout]');
   });
 });

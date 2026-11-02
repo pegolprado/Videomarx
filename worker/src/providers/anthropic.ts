@@ -21,7 +21,12 @@ export interface TextResult<T> {
   usage: { input_tokens: number; output_tokens: number; model: string };
 }
 
-export class TextAdapter {
+/** Interface comum dos geradores de texto (Claude, Gemini). */
+export interface TextGenerator {
+  generate<S extends z.ZodType>(system: string, user: string, schema: S): Promise<TextResult<z.infer<S>>>;
+}
+
+export class TextAdapter implements TextGenerator {
   constructor(
     private readonly client: Anthropic,
     readonly model: string,

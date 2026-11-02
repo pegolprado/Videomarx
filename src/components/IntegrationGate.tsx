@@ -27,3 +27,12 @@ export function useIntegration(provider: string) {
   const caps = useCapabilities();
   return integrationStatus(caps.data, provider);
 }
+
+/** Motor de texto: Gemini (grátis) quando disponível; senão Claude. */
+export function useTextEngine(): { engine: 'gemini' | 'anthropic'; ok: boolean; reason?: string; label: string } {
+  const gemini = useIntegration('gemini');
+  const claude = useIntegration('anthropic');
+  if (gemini.ok) return { engine: 'gemini', ok: true, label: 'Gemini, grátis' };
+  if (claude.ok) return { engine: 'anthropic', ok: true, label: 'Claude' };
+  return { engine: 'gemini', ok: false, reason: `Nenhum motor de texto ativo (Gemini: ${gemini.reason?.toLowerCase()})`, label: 'Gemini' };
+}

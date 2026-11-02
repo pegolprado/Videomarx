@@ -1,4 +1,4 @@
-import { Clapperboard, Coins, Copy, FolderOpen, Scissors, Star, Trash2, Type, UserPlus, Wand2 } from 'lucide-react';
+import { Clapperboard, Coins, Copy, Gift, FolderOpen, Scissors, Star, Trash2, Type, UserPlus, Wand2 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
@@ -16,7 +16,8 @@ import { supabase } from '@/lib/supabase';
 import type { LedgerEntry } from '@/lib/types';
 
 const ACTIONS = [
-  { to: '/gerar', label: 'Criar vídeo', icon: Clapperboard, primary: true },
+  { to: '/video-gratis', label: 'Criar vídeo grátis', icon: Gift, primary: true },
+  { to: '/gerar', label: 'Criar vídeo', icon: Clapperboard },
   { to: '/transformar', label: 'Transformar vídeo', icon: Wand2, primary: true },
   { to: '/personagens/novo', label: 'Criar personagem', icon: UserPlus },
   { to: '/gerar?modo=texto', label: 'Gerar vídeo por texto', icon: Type },
@@ -60,7 +61,7 @@ export default function Dashboard() {
     <div className="flex flex-col gap-8">
       <PageHeader title={`Olá${profile.data?.display_name ? `, ${profile.data.display_name.split(' ')[0]}` : ''}!`} subtitle="O que vamos criar hoje?" />
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         {ACTIONS.map((a) => (
           <Link
             key={a.label}

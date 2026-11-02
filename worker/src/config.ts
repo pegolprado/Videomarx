@@ -11,9 +11,8 @@ function required(name: string): string {
 export interface Config {
   supabaseUrl: string;
   serviceRoleKey: string;
-  runwayKey?: string;
-  anthropicKey?: string;
   anthropicModel: string;
+  geminiModel: string;
   workerId: string;
   concurrency: number;
   pollMs: number;
@@ -32,15 +31,15 @@ export function loadConfig(): Config {
   return {
     supabaseUrl: required('SUPABASE_URL'),
     serviceRoleKey: required('SUPABASE_SERVICE_ROLE_KEY'),
-    runwayKey: process.env.RUNWAYML_API_SECRET || undefined,
-    anthropicKey: process.env.ANTHROPIC_API_KEY || undefined,
     anthropicModel: process.env.ANTHROPIC_MODEL || 'claude-opus-5-5',
+    // alias do Google que aponta para o Flash mais recente (plano gratuito)
+    geminiModel: process.env.GEMINI_MODEL || 'gemini-flash-latest',
     workerId: process.env.WORKER_ID || `${hostname()}-${process.pid}`,
     concurrency: Math.max(1, Number(process.env.WORKER_CONCURRENCY || 2)),
     pollMs: Math.max(1000, Number(process.env.WORKER_POLL_MS || 3000)),
     tmpDir: process.env.WORKER_TMP_DIR || join(tmpdir(), 'videoai-worker'),
     fontFile: process.env.FONT_FILE || '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
-    version: process.env.WORKER_VERSION || '0.2.0',
+    version: process.env.WORKER_VERSION || '0.3.0',
     whisperBin: process.env.WHISPER_BIN || '/usr/local/bin/whisper-cli',
     whisperModel: process.env.WHISPER_MODEL_PATH || '/models/whisper.bin',
     piperBin: process.env.PIPER_BIN || '/opt/piper/piper',

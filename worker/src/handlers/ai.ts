@@ -65,8 +65,9 @@ function costOf(ctx: JobContext) {
 
 // ---------------------------------------------------------------------------
 export const imageHandler: Handler = async (ctx) => {
-  const runway = runwayOf(ctx);
   const p = ctx.job.params as unknown as ImageParams;
+  if (p.engine === 'cloudflare') return cloudflareImage(ctx, p);
+  const runway = runwayOf(ctx);
   const aspect = assertAspect(p.aspect);
   const model = p.model === 'gen4_image_turbo' ? 'gen4_image_turbo' : 'gen4_image';
   let promptText = clampPrompt(p.prompt ?? '');
@@ -107,6 +108,35 @@ export const imageHandler: Handler = async (ctx) => {
   }
   return { outputs: [asset.id], ...costOf(ctx) };
 };
+
+/** Imagem pela cota grátis da Cloudflare (sem imagem de referência: só a descrição do personagem). */
+async function cloudflareImage(ctx: JobContext, p: ImageParams) {
+  if (!ctx.cloudflare) throw new JobError('not_configured', 'A integração com a Cloudflare não está configurada neste servidor.');
+  let character: CharacterRow | null = null;
+  let prompt = clampPrompt(p.prompt ?? '');
+  if (p.character_id) {
+    character = await ctx.loadCharacter(p.character_id);
+    if (character.user_id !== ctx.job.user_id) throw new JobError('forbidden', 'Personagem inválido.');
+    prompt = characterImagePrompt(character, p.view ?? 'custom', p.prompt ?? '', false);
+  }
+  if (!prompt) throw new JobError('invalid_params', 'Descreva a imagem.');
+  const orientation = p.aspect === '9:16' ? 'vertical portrait composition' : p.aspect === '16:9' ? 'wide horizontal composition' : 'square composition';
+  await ctx.progress(0.2, undefined, undefined, 'Gerando imagem (Cloudflare)');
+  const bytes = await ctx.cloudflare.flux(`${prompt}. ${orientation}, subject centered`);
+  const local = join(ctx.workDir, `${randomUUID()}.jpg`);
+  await writeFile(local, bytes);
+  const asset = await saveOutput(ctx, local, {
+    name: character ? `${character.name} — ${p.view ?? 'imagem'}` : 'Imagem gerada',
+    category: character ? 'reference' : 'generated',
+    ext: 'jpg',
+    characterId: character?.id,
+    metadata: { synthetic: true, provider: 'cloudflare', model: 'flux-1-schnell', prompt, view: p.view ?? null },
+  });
+  if (character && !character.primary_image_id) {
+    await ctx.db.from('characters').update({ primary_image_id: asset.id }).eq('id', character.id);
+  }
+  return { outputs: [asset.id], actualUsd: null };
+}
 
 // ---------------------------------------------------------------------------
 export const videoHandler: Handler = async (ctx) => {
@@ -356,8 +386,11 @@ Regras obrigatórias:
 - Durações de cena entre 4 e 10 segundos.`;
 
 export const textHandler: Handler = async (ctx) => {
-  if (!ctx.text) throw new JobError('not_configured', 'A integração de textos (Claude) não está configurada neste servidor.');
   const p = ctx.job.params as unknown as TextParams;
+  const generator = p.engine === 'gemini' ? ctx.gemini : ctx.text;
+  if (!generator) {
+    throw new JobError('not_configured', p.engine === 'gemini' ? 'A integração com o Gemini não está configurada neste servidor.' : 'A integração de textos (Claude) não está configurada neste servidor.');
+  }
   const input = p.input ?? {};
   let characterText = '';
   if (p.character_id) {
@@ -374,21 +407,21 @@ export const textHandler: Handler = async (ctx) => {
   let result;
   let title = 'Roteiro';
   if (p.task === 'social_pack') {
-    result = await ctx.text.generate(
+    result = await generator.generate(
       TEXT_SYSTEM,
       `Crie um pacote de conteúdo com: 5 ideias, o roteiro completo da melhor ideia (gancho, desenvolvimento, momento principal, conclusão, chamada para ação quando apropriada), falas do personagem com tempo aproximado, cenas com prompts visuais, legenda do post, 5 títulos, descrição, até 10 hashtags relevantes (sem inventar volume de buscas), sugestão de capa e 3 variações do roteiro com ganchos diferentes.${characterText}\nPedido:\n${brief}`,
       SocialPackSchema,
     );
     title = result.data.script.title;
   } else if (p.task === 'split_script') {
-    result = await ctx.text.generate(
+    result = await generator.generate(
       TEXT_SYSTEM,
       `Divida o roteiro abaixo em cenas curtas e independentes para geração de vídeo, mantendo a ordem e o sentido das falas. Para cada cena: título curto, narração (texto original correspondente), prompt visual em inglês, movimento de câmera e duração.${characterText}\nPedido:\n${brief}`,
       SplitScriptSchema,
     );
     title = String(input.titulo ?? 'Roteiro dividido em cenas');
   } else if (p.task === 'scene_prompt') {
-    result = await ctx.text.generate(
+    result = await generator.generate(
       TEXT_SYSTEM,
       `Transforme a descrição de cena abaixo numa instrução organizada para um modelo de vídeo (prompt_en, até 900 caracteres) e explique em notes_pt, em uma ou duas frases, o que foi decidido.${characterText}\nCena:\n${brief}`,
       ScenePromptSchema,
@@ -408,5 +441,5 @@ export const textHandler: Handler = async (ctx) => {
       job_id: ctx.job.id,
     });
   }
-  return { outputs: [], result: { ...result.data }, actualUsd: result.usd, providerCost: { anthropic: result.usage } };
+  return { outputs: [], result: { ...result.data }, actualUsd: result.usd, providerCost: { [p.engine === 'gemini' ? 'gemini' : 'anthropic']: result.usage } };
 };

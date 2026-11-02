@@ -18,6 +18,13 @@ Quando estiver pronto, o worker informa `local_transcribe`, `local_tts` e `local
 - **Limites e preço**: Administração → Preços (`local.transcribe`, `local.tts`). Padrão: 0 créditos e até 300 s por legenda.
 - **Threads**: variável `LOCAL_AI_THREADS` (padrão 2).
 
+## Opções gratuitas externas
+| Função | Serviço | Limite gratuito (conferir no provedor) |
+|---|---|---|
+| Roteiros e cenas | Google Gemini (`gemini-flash-latest`, variável `GEMINI_MODEL`) | limite diário de pedidos do plano gratuito; o Google pode usar o conteúdo para melhorar os produtos |
+| Imagens | Cloudflare Workers AI — FLUX.1 schnell (Apache 2.0) | 10.000 neurons/dia; sem imagens de referência (usa só a descrição do personagem) |
+| Vídeo animado | FFmpeg no nosso servidor | sem limite |
+
 ## Próximas fases
 - Fase 2: vídeo e imagem com modelos abertos (Wan 2.2, Wan-Animate, FLUX.1 schnell) numa GPU alugada por uso.
 - Fase 3: treinamento de personagens (LoRA) para consistência própria.

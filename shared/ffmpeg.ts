@@ -2,7 +2,7 @@
  * Construção de filtros/argumentos do FFmpeg (funções puras, testadas).
  * Execução fica no worker.
  */
-import type { Aspect, ExportParams } from './jobs';
+import type { Aspect, ExportParams, SlideMotion } from './jobs';
 
 export function targetSize(aspect: Aspect, resolution: 720 | 1080): { w: number; h: number } {
   const short = resolution;
@@ -21,7 +21,7 @@ export function fitFilter(aspect: Aspect, resolution: 720 | 1080, fit: 'crop' | 
   return `scale=${w}:${h}:force_original_aspect_ratio=decrease,pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1`;
 }
 
-function escapeFilterPath(p: string): string {
+export function escapeFilterPath(p: string): string {
   return p.replace(/\\/g, '/').replace(/:/g, '\\:').replace(/'/g, "\\'");
 }
 
@@ -202,4 +202,70 @@ export function concatFilter(
   }
   const duration = clips.reduce((n, c) => n + c.duration, 0) - t * (clips.length - 1);
   return { filter: parts.join(';'), duration };
+}
+
+const AUTO_MOTIONS: SlideMotion[] = ['zoom_in', 'pan_right', 'zoom_out', 'pan_left'];
+
+/**
+ * Duração de cada imagem: com narração, as imagens dividem a duração do
+ * áudio (descontando a sobreposição das transições); sem narração, valor fixo.
+ */
+export function slideDurations(count: number, opts: { audioSeconds?: number | null; secondsPerImage?: number; transition: number }): number[] {
+  if (count < 1) return [];
+  const t = count > 1 ? opts.transition : 0;
+  const each = opts.audioSeconds && opts.audioSeconds > 0
+    ? (opts.audioSeconds + t * (count - 1)) / count
+    : Math.min(Math.max(opts.secondsPerImage ?? 4, 1.5), 20);
+  return Array.from({ length: count }, () => Math.max(Math.round(each * 1000) / 1000, t + 0.5));
+}
+
+/**
+ * Filtro do vídeo animado: cada imagem vira um clipe com movimento de câmera
+ * (zoompan sobre a imagem ampliada, para ficar suave) e os clipes são unidos
+ * com fade. Entradas: imagens nos índices 0..n-1. Saída: [vout].
+ */
+export function slideshowFilter(
+  durations: number[],
+  aspect: Aspect,
+  resolution: 720 | 1080,
+  motion: SlideMotion | 'auto' = 'auto',
+  transition: 'fade' | 'none' = 'fade',
+  td = 0.6,
+  fps = 30,
+): { filter: string; duration: number } {
+  const { w, h } = targetSize(aspect, resolution);
+  const W = w * 2;
+  const H = h * 2;
+  const parts: string[] = [];
+  durations.forEach((d, i) => {
+    const frames = Math.max(1, Math.round(d * fps));
+    const m = motion === 'auto' ? AUTO_MOTIONS[i % AUTO_MOTIONS.length] : motion;
+    const step = (0.25 / frames).toFixed(6);
+    const center = `x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'`;
+    const zp =
+      m === 'zoom_in' ? `z='min(1+${step}*on,1.25)':${center}`
+      : m === 'zoom_out' ? `z='max(1.25-${step}*on,1)':${center}`
+      : m === 'pan_right' ? `z='1.2':x='(iw-iw/zoom)*on/${frames}':y='ih/2-(ih/zoom/2)'`
+      : `z='1.2':x='(iw-iw/zoom)*(1-on/${frames})':y='ih/2-(ih/zoom/2)'`;
+    parts.push(`[${i}:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},zoompan=${zp}:d=${frames}:s=${w}x${h}:fps=${fps},setsar=1,format=yuv420p,trim=duration=${d.toFixed(3)}[s${i}]`);
+  });
+  const n = durations.length;
+  const total = durations.reduce((a, b) => a + b, 0);
+  if (n === 1) {
+    parts.push('[s0]null[vout]');
+    return { filter: parts.join(';'), duration: total };
+  }
+  if (transition === 'none') {
+    parts.push(`${durations.map((_, i) => `[s${i}]`).join('')}concat=n=${n}:v=1:a=0[vout]`);
+    return { filter: parts.join(';'), duration: total };
+  }
+  let offset = 0;
+  let prev = 's0';
+  for (let i = 1; i < n; i++) {
+    offset += durations[i - 1] - td;
+    const out = i === n - 1 ? 'vout' : `x${i}`;
+    parts.push(`[${prev}][s${i}]xfade=transition=fade:duration=${td.toFixed(3)}:offset=${offset.toFixed(3)}[${out}]`);
+    prev = out;
+  }
+  return { filter: parts.join(';'), duration: total - td * (n - 1) };
 }

@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { useQuery } from '@tanstack/react-query';
 import { CharacterSelect } from '@/components/CharacterSelect';
 import { CostConfirm } from '@/components/CostConfirm';
-import { IntegrationGate, useIntegration } from '@/components/IntegrationGate';
+import { useTextEngine } from '@/components/IntegrationGate';
 import { JobCard } from '@/components/JobCard';
 import { Badge, Button, Card, Field, Input, Notice, PageHeader, Select, Textarea } from '@/components/ui';
 import { useJobs } from '@/lib/hooks';
@@ -32,7 +32,7 @@ export default function Viral() {
   const [jobId, setJobId] = useState<string | null>(null);
   const [pack, setPack] = useState<Pack | null>(null);
   const jobs = useJobs({ ids: jobId ? [jobId] : [] });
-  const anthropic = useIntegration('anthropic');
+  const textEngine = useTextEngine();
   const history = useQuery({
     queryKey: ['scripts'],
     queryFn: async () => {
@@ -54,7 +54,7 @@ export default function Viral() {
   return (
     <div className="flex flex-col gap-5">
       <PageHeader title="Criar conteúdo viral" subtitle="Ideias, ganchos, roteiro, cenas, legendas e hashtags — com potencial de engajamento, sem promessas de viralização." />
-      <IntegrationGate provider="anthropic" feature="Roteiros com IA" />
+      {!textEngine.ok && <Notice tone="warning" title="Roteiros com IA: integração pendente">{textEngine.reason}. Configure a chave do Gemini (grátis) em Administração → Integrações.</Notice>}
       <Card className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <div className="sm:col-span-2 lg:col-span-3">
           <Field label="Tema ou ideia do vídeo">{(i) => <Textarea id={i} value={form.tema} onChange={(e) => set('tema', e.target.value)} placeholder="ex.: 3 erros comuns ao começar na academia" />}</Field>
@@ -72,7 +72,7 @@ export default function Viral() {
           <Notice>Sem fonte de dados de tendências conectada: o sistema não usa nem inventa estatísticas, números de visualizações ou tendências.</Notice>
         </div>
         <div className="sm:col-span-2 lg:col-span-3">
-          <CostConfirm kind="ai.text" params={{ task: 'social_pack', character_id: characterId || undefined, input: form }} disabled={!anthropic.ok ? anthropic.reason : !form.tema.trim() ? 'Descreva o tema.' : false} label="Gerar conteúdo" onCreated={(j) => { setJobId(j.id); setPack(null); }} />
+          <CostConfirm kind="ai.text" params={{ task: 'social_pack', engine: textEngine.engine, character_id: characterId || undefined, input: form }} disabled={!textEngine.ok ? textEngine.reason : !form.tema.trim() ? 'Descreva o tema.' : false} label={`Gerar conteúdo · ${textEngine.label}`} onCreated={(j) => { setJobId(j.id); setPack(null); }} />
         </div>
       </Card>
       {jobs.data?.map((j) => j.status !== 'succeeded' && <JobCard key={j.id} job={j} showOutputs={false} />)}

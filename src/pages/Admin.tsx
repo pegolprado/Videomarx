@@ -240,12 +240,62 @@ function Plans() {
   );
 }
 
+const SECRET_FIELDS: { name: string; label: string; help: string }[] = [
+  { name: 'GEMINI_API_KEY', label: 'Google Gemini — API key (grátis)', help: 'aistudio.google.com → Get API key' },
+  { name: 'CLOUDFLARE_ACCOUNT_ID', label: 'Cloudflare — Account ID (grátis)', help: 'Painel da Cloudflare → Workers AI → "Use REST API"' },
+  { name: 'CLOUDFLARE_API_TOKEN', label: 'Cloudflare — API token com permissão Workers AI (grátis)', help: 'Painel da Cloudflare → Workers AI → "Create a Workers AI API Token"' },
+  { name: 'RUNWAYML_API_SECRET', label: 'Runway — API secret (pago por uso)', help: 'dev.runwayml.com' },
+  { name: 'ANTHROPIC_API_KEY', label: 'Anthropic (Claude) — API key (pago por uso)', help: 'console.anthropic.com' },
+];
+
+function SecretsAdmin() {
+  const qc = useQueryClient();
+  const [values, setValues] = useState<Record<string, string>>({});
+  const list = useQuery({ queryKey: ['admin', 'secrets'], queryFn: () => rpc('admin_list_secrets', {}) as Promise<{ name: string; hint: string; updated_at: string }[]> });
+  async function save(name: string, value: string) {
+    try {
+      await rpc('admin_set_secret', { p_name: name, p_value: value });
+      toast.success(value ? 'Chave salva. O servidor passa a usá-la em até 1 minuto.' : 'Chave removida.');
+      setValues((v) => ({ ...v, [name]: '' }));
+      qc.invalidateQueries({ queryKey: ['admin', 'secrets'] });
+      setTimeout(() => qc.invalidateQueries({ queryKey: ['capabilities'] }), 65_000);
+    } catch (e) {
+      toast.error(errorMessage(e));
+    }
+  }
+  return (
+    <Card className="flex flex-col gap-3">
+      <p className="font-medium">Chaves de API</p>
+      <p className="text-xs text-muted">Ficam guardadas no banco e só o servidor de processamento consegue lê-las. Depois de salvas, aqui aparece apenas o final de cada chave.</p>
+      {list.error && <Notice tone="warning">Não foi possível ler as chaves: {errorMessage(list.error)}. Aplique a migração mais recente do banco.</Notice>}
+      {SECRET_FIELDS.map((f) => {
+        const saved = list.data?.find((x) => x.name === f.name);
+        return (
+          <div key={f.name} className="flex flex-col gap-1.5 rounded-xl border border-line p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm font-medium">{f.label}</p>
+              {saved ? <Badge tone="success">Configurada {saved.hint}</Badge> : <Badge>Não configurada</Badge>}
+            </div>
+            <p className="text-xs text-muted">{f.help}</p>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Input type="password" autoComplete="off" placeholder={saved ? 'Colar uma nova para substituir' : 'Cole aqui'} value={values[f.name] ?? ''} onChange={(e) => setValues((v) => ({ ...v, [f.name]: e.target.value }))} />
+              <Button disabled={!(values[f.name] ?? '').trim()} onClick={() => save(f.name, (values[f.name] ?? '').trim())}>Salvar</Button>
+              {saved && <Button variant="ghost" onClick={() => confirm('Remover esta chave?') && save(f.name, '')}>Remover</Button>}
+            </div>
+          </div>
+        );
+      })}
+    </Card>
+  );
+}
+
 function IntegrationsAdmin() {
   const qc = useQueryClient();
   const list = useQuery({ queryKey: ['admin', 'integrations'], queryFn: async () => ((await supabase.from('integrations').select('*').order('id')).data ?? []) as { id: string; label: string; description: string; enabled: boolean }[] });
   return (
     <div className="flex flex-col gap-3">
-      <Notice>As chaves de API ficam somente no servidor de processamento (variáveis de ambiente do worker) e nunca são exibidas aqui nem enviadas ao navegador. O painel mostra apenas se cada worker tem a chave configurada (aba Visão geral).</Notice>
+      <SecretsAdmin />
+      <p className="font-medium">Habilitar ou desabilitar</p>
       {(list.data ?? []).map((i) => (
         <Card key={i.id} className="flex items-center justify-between gap-3">
           <div><p className="font-medium">{i.label}</p><p className="text-xs text-muted">{i.description}</p></div>

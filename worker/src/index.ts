@@ -1,7 +1,9 @@
 /**
  * Worker do VideoAI Studio.
- * Busca tarefas na fila (Supabase), executa com FFmpeg e provedores de IA e
- * registra progresso, custo real e resultado. Pode rodar em várias instâncias.
+ * Busca tarefas na fila (Supabase), executa com FFmpeg, motor próprio e
+ * provedores de IA, e registra progresso, custo real e resultado.
+ * As chaves de API vêm do ambiente ou do cofre do banco (painel admin) e são
+ * relidas a cada 30 s: colar uma chave no painel ativa a integração sozinha.
  */
 import { mkdir } from 'node:fs/promises';
 import { createClient } from '@supabase/supabase-js';
@@ -10,9 +12,12 @@ import { run } from './ffmpeg.ts';
 import { supportedKinds } from './handlers/index.ts';
 import { runMaintenance } from './maintenance.ts';
 import { TextAdapter } from './providers/anthropic.ts';
+import { CloudflareAI } from './providers/cloudflare.ts';
+import { GeminiAdapter } from './providers/gemini.ts';
 import { detectLocal } from './providers/local.ts';
 import { RunwayAdapter } from './providers/runway.ts';
-import { processJob } from './runner.ts';
+import { processJob, type RunnerDeps } from './runner.ts';
+import { SecretStore } from './secrets.ts';
 import { Storage } from './storage.ts';
 import type { JobRow } from './types.ts';
 
@@ -21,8 +26,7 @@ const log = (msg: string, data?: Record<string, unknown>) => console.log(JSON.st
 
 const db = createClient(config.supabaseUrl, config.serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
 const storage = new Storage(db);
-const runway = config.runwayKey ? RunwayAdapter.create(config.runwayKey) : undefined;
-const text = config.anthropicKey ? TextAdapter.create(config.anthropicKey, config.anthropicModel) : undefined;
+const secrets = new SecretStore(db);
 
 async function hasFfmpeg(): Promise<boolean> {
   try {
@@ -34,6 +38,27 @@ async function hasFfmpeg(): Promise<boolean> {
   }
 }
 
+/** Adaptadores recriados apenas quando alguma chave muda. */
+let providers: Pick<RunnerDeps, 'runway' | 'text' | 'gemini' | 'cloudflare'> = {};
+let fingerprint = '';
+function rebuildProviders() {
+  const fp = secrets.fingerprint();
+  if (fp === fingerprint) return;
+  fingerprint = fp;
+  const runwayKey = secrets.get('RUNWAYML_API_SECRET');
+  const anthropicKey = secrets.get('ANTHROPIC_API_KEY');
+  const geminiKey = secrets.get('GEMINI_API_KEY');
+  const cfAccount = secrets.get('CLOUDFLARE_ACCOUNT_ID');
+  const cfToken = secrets.get('CLOUDFLARE_API_TOKEN');
+  providers = {
+    runway: runwayKey ? RunwayAdapter.create(runwayKey) : undefined,
+    text: anthropicKey ? TextAdapter.create(anthropicKey, config.anthropicModel) : undefined,
+    gemini: geminiKey ? GeminiAdapter.create(geminiKey, config.geminiModel) : undefined,
+    cloudflare: cfAccount && cfToken ? new CloudflareAI(cfAccount, cfToken) : undefined,
+  };
+  log('providers.updated', { runway: !!providers.runway, anthropic: !!providers.text, gemini: !!providers.gemini, cloudflare: !!providers.cloudflare });
+}
+
 let stopping = false;
 const running = new Set<Promise<unknown>>();
 
@@ -41,21 +66,29 @@ async function main() {
   await mkdir(config.tmpDir, { recursive: true });
   const ffmpegOk = await hasFfmpeg();
   const local = await detectLocal(config);
-  const caps = {
+  const capabilities = () => ({
     ffmpeg: ffmpegOk,
-    runway: !!runway,
-    anthropic: !!text,
+    runway: !!providers.runway,
+    anthropic: !!providers.text,
+    gemini: !!providers.gemini,
+    cloudflare: !!providers.cloudflare,
     local: ffmpegOk && (local.transcribe || local.tts),
     local_transcribe: local.transcribe,
     local_tts: local.tts,
     local_voices: local.voices,
-  };
-  const kinds = supportedKinds(caps);
-  log('worker.start', { id: config.workerId, version: config.version, caps, kinds });
-  if (!kinds.length) log('worker.warning', { message: 'Nenhuma capacidade disponível: instale o FFmpeg e/ou configure as chaves de API.' });
+  });
+  await secrets.refresh();
+  rebuildProviders();
+  log('worker.start', { id: config.workerId, version: config.version, caps: capabilities() });
 
   const heartbeat = async () => {
-    const { error } = await db.rpc('worker_heartbeat', { p_worker: config.workerId, p_version: config.version, p_capabilities: caps });
+    try {
+      await secrets.refresh();
+      rebuildProviders();
+    } catch (e) {
+      log('secrets.error', { error: String(e) });
+    }
+    const { error } = await db.rpc('worker_heartbeat', { p_worker: config.workerId, p_version: config.version, p_capabilities: capabilities() });
     if (error) log('heartbeat.error', { error: error.message });
   };
   await heartbeat();
@@ -63,12 +96,13 @@ async function main() {
   const maint = setInterval(() => runMaintenance(db, storage, log).catch((e) => log('maintenance.error', { error: String(e) })), 10 * 60_000);
 
   while (!stopping) {
+    const kinds = supportedKinds(capabilities());
     const free = config.concurrency - running.size;
     if (free > 0 && kinds.length) {
       const { data, error } = await db.rpc('worker_claim_jobs', { p_worker: config.workerId, p_limit: free, p_kinds: kinds });
       if (error) log('claim.error', { error: error.message });
       for (const job of (data ?? []) as JobRow[]) {
-        const p = processJob(job, { db, config, storage, runway, text, log })
+        const p = processJob(job, { db, config, storage, ...providers, log })
           .catch((e) => log('job.crash', { id: job.id, error: String(e) }))
           .finally(() => running.delete(p));
         running.add(p);
@@ -79,7 +113,6 @@ async function main() {
   }
   clearInterval(hb);
   clearInterval(maint);
-  // encerra com elegância: termina o que está rodando (tarefas da Runway são retomadas por outro worker se passar do prazo)
   await Promise.allSettled([...running]);
   log('worker.stop');
 }
