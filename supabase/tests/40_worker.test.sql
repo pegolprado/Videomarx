@@ -59,3 +59,32 @@ begin
   raise notice 'worker ok';
 end $$;
 rollback;
+
+-- motor próprio (Whisper / Piper)
+begin;
+do $$
+declare
+  v_u uuid := tests.create_user('local@teste.com');
+  v_video uuid := tests.make_video(v_u, 20);
+  v_est jsonb;
+  v_job public.jobs;
+  v_caps jsonb;
+begin
+  perform public.worker_heartbeat('w-local', '0.2.0', '{"ffmpeg":true,"local":true,"local_transcribe":true,"local_tts":true,"local_voices":["pt_BR-faber-medium"]}');
+  perform tests.login(v_u);
+  v_caps := public.platform_capabilities();
+  perform tests.assert((v_caps -> 'integrations' -> 'local' ->> 'configured')::boolean, 'motor próprio configurado');
+  perform tests.assert((v_caps -> 'local' ->> 'transcribe')::boolean, 'legendas disponíveis');
+  perform tests.assert_eq(v_caps -> 'local' -> 'voices' ->> 0, 'pt_BR-faber-medium', 'vozes listadas');
+  v_est := public.estimate_job('local.transcribe', '{}', array[v_video]);
+  perform tests.assert_eq((v_est ->> 'credits')::int, 0, 'legendas sem custo por padrão');
+  perform tests.assert_eq(jsonb_array_length(v_est -> 'errors'), 0, 'sem erros');
+  v_job := public.create_job('local.transcribe', '{"language":"pt"}', array[v_video], null, 'transcribe-001', 0);
+  perform tests.assert_eq(v_job.provider, 'local', 'provedor local');
+  v_job := public.create_job('local.tts', '{"text":"Olá, mundo","voice":"pt_BR-faber-medium"}', '{}', null, 'local-tts-001', 0);
+  perform tests.assert_eq(v_job.status, 'queued', 'voz própria na fila');
+  perform tests.assert_fails($q$select public.create_job('local.transcribe', '{}', '{}', null, 'transcribe-002', 0)$q$, 'legendas exigem um arquivo');
+  perform tests.logout();
+  raise notice 'motor próprio ok';
+end $$;
+rollback;

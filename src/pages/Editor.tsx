@@ -1,5 +1,6 @@
-import { ArrowLeft, ArrowRight, Film, Scissors, Trash2, Wand2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Captions, Film, Scissors, Trash2, Wand2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import type { Aspect, ExportParams } from '@shared/jobs';
 import { estimateFileSizeBytes, formatBytes, formatDuration } from '@shared/format';
@@ -26,6 +27,13 @@ export default function Editor() {
   const clip = videos.data?.find((v) => v.id === clipId);
   const ok = (videos.data ?? []).filter((v) => v.probe_status === 'ok');
   const addJob = (id: string) => setJobIds((ids) => [id, ...ids]);
+  const qc = useQueryClient();
+  const [subLang, setSubLang] = useState('pt');
+  const doneCount = (jobs.data ?? []).filter((j) => j.status === 'succeeded').length;
+  // resultados novos (ex.: legendas geradas) aparecem nas listas sem recarregar
+  useEffect(() => {
+    if (doneCount) qc.invalidateQueries({ queryKey: ['assets'] });
+  }, [doneCount, qc]);
 
   const [exp, setExp] = useState<ExportParams>({ aspect: '9:16', resolution: 1080, fit: 'crop', quality: 'economy', speed: 1, volume: 1, fade_audio: false, mute: false, color: { brightness: 0, contrast: 1, saturation: 1 } });
   const [overlay, setOverlay] = useState({ text: '', position: 'bottom' as 'top' | 'center' | 'bottom' });
@@ -73,7 +81,15 @@ export default function Editor() {
                 {(i) => <Select id={i} value={exp.subtitle_asset_id ?? ''} onChange={(e) => setExp({ ...exp, subtitle_asset_id: e.target.value || undefined })} options={[{ value: '', label: 'Sem legenda' }, ...(subtitles.data ?? []).filter((s) => s.probe_status === 'ok').map((s) => ({ value: s.id, label: s.name }))]} />}
               </Field>
             </div>
-            <p className="text-xs text-muted">Legendas automáticas a partir da fala exigem um serviço de transcrição (integração pendente). Use legendas geradas em Voz ou envie um .srt; o arquivo .srt também pode ser baixado separadamente na Biblioteca.</p>
+            <div className="flex flex-col gap-3 rounded-xl border border-line p-3">
+              <p className="flex items-center gap-2 text-sm font-medium"><Captions className="size-4" /> Legendas automáticas (motor próprio, grátis)</p>
+              <IntegrationGate provider="local" feature="Legendas automáticas" />
+              <Field label="Idioma da fala">
+                {(i) => <Select id={i} value={subLang} onChange={(e) => setSubLang(e.target.value)} options={[{ value: 'pt', label: 'Português' }, { value: 'en', label: 'Inglês' }, { value: 'es', label: 'Espanhol' }, { value: 'auto', label: 'Detectar automaticamente' }]} />}
+              </Field>
+              <CostConfirm kind="local.transcribe" params={{ language: subLang, max_line: 42 }} inputs={[clip.id]} label="Gerar legendas" disabled={!clip.has_audio ? 'Este vídeo não tem áudio.' : false} onCreated={(j) => addJob(j.id)} />
+              <p className="text-xs text-muted">A legenda pronta aparece em "Legenda incorporada" acima e na Biblioteca (também dá para baixar o .srt separado). Revise antes de publicar: nomes próprios e gírias podem sair errados.</p>
+            </div>
           </Card>
           <Card className="flex flex-col gap-3">
             <Field label="Formato">{(i) => <Select id={i} value={exp.aspect} onChange={(e) => setExp({ ...exp, aspect: e.target.value as Aspect })} options={[{ value: '9:16', label: 'Vertical 9:16 (Reels, TikTok, Shorts)' }, { value: '16:9', label: 'Horizontal 16:9 (YouTube)' }, { value: '1:1', label: 'Quadrado 1:1' }]} />}</Field>

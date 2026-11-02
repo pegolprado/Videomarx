@@ -6,6 +6,7 @@ import { atempoChain, buildExportArgs, concatFilter, fitFilter, speechSegments, 
 import { ratioFor } from './ratios';
 import { estimateFileSizeBytes, formatDuration } from './format';
 import type { Capabilities } from './capabilities';
+import { piperVoiceLabel } from './voices';
 
 const caps = (over: Partial<Capabilities['integrations'][string]> = {}, online = true): Capabilities => ({
   worker_online: online,
@@ -152,5 +153,12 @@ describe('formatos', () => {
   it('formatação', () => {
     expect(formatDuration(75)).toBe('1:15');
     expect(estimateFileSizeBytes(10, 1080, 'economy')).toBe(5_160_000);
+  });
+});
+
+describe('vozes do motor próprio', () => {
+  it('nome amigável', () => {
+    expect(piperVoiceLabel('pt_BR-faber-medium')).toBe('Faber (pt-BR, média)');
+    expect(piperVoiceLabel('estranho')).toBe('estranho');
   });
 });

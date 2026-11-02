@@ -16,11 +16,13 @@ Nunca executado contra os provedores neste ambiente (sem chaves e sem acesso de 
 - Runway: imagens de personagem, vídeo por texto/imagem, transformação Modos C, D, E e F, voz.
 - Claude: pacote de conteúdo viral, divisão de roteiro em cenas.
 
+## Motor próprio (Fase 1) — instalado pela atualização automática, aguardando o primeiro teste real
+- Legendas automáticas a partir da fala (Whisper) e voz em português (Piper), sem custo por uso. Integração testada com programas simulados; o Whisper e o Piper de verdade só rodam no servidor. Ver `docs/MOTOR_PROPRIO.md`.
+
 ## Pendente (aparece bloqueado na interface)
 - Modos A (troca de rosto) e B (cabeça/rosto): falta provedor com API e licença comercial.
 - Detecção/segmentação automática de pessoas (hoje o usuário confirma pela prévia).
 - Sincronização labial.
-- Legendas automáticas a partir da fala (transcrição).
 - Regenerar só um trecho problemático de um vídeo transformado (hoje: ajustar o trecho e gerar outra variação).
 - Pagamentos/assinaturas (planos e créditos já existem; cobrança só após validar o processamento real).
 - Renovação mensal automática de créditos por plano.

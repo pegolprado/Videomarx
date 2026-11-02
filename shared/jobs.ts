@@ -11,6 +11,8 @@ export const JOB_KINDS = [
   'ai.transform',
   'ai.tts',
   'ai.text',
+  'local.transcribe',
+  'local.tts',
 ] as const;
 export type JobKind = (typeof JOB_KINDS)[number];
 
@@ -39,9 +41,11 @@ export const KIND_LABEL: Record<JobKind, string> = {
   'ai.transform': 'Transformação de vídeo',
   'ai.tts': 'Geração de voz',
   'ai.text': 'Roteiro e textos',
+  'local.transcribe': 'Legendas automáticas',
+  'local.tts': 'Voz (motor próprio)',
 };
 
-export const KIND_PROVIDER: Record<JobKind, 'ffmpeg' | 'runway' | 'anthropic'> = {
+export const KIND_PROVIDER: Record<JobKind, 'ffmpeg' | 'runway' | 'anthropic' | 'local'> = {
   'media.probe': 'ffmpeg',
   'media.trim': 'ffmpeg',
   'media.export': 'ffmpeg',
@@ -52,6 +56,8 @@ export const KIND_PROVIDER: Record<JobKind, 'ffmpeg' | 'runway' | 'anthropic'> =
   'ai.transform': 'runway',
   'ai.tts': 'runway',
   'ai.text': 'anthropic',
+  'local.transcribe': 'local',
+  'local.tts': 'local',
 };
 
 export type Aspect = '9:16' | '16:9' | '1:1';
@@ -149,6 +155,23 @@ export interface TtsParams {
   stability?: number;
   character_id?: string;
   /** também gera uma legenda .srt estimada a partir do texto */
+  make_subtitles?: boolean;
+}
+
+/** Legendas automáticas a partir da fala (Whisper no nosso servidor). */
+export interface TranscribeParams {
+  /** código ISO 639-1 (pt, en, es…) ou "auto" */
+  language?: string;
+  /** máximo de caracteres por linha de legenda */
+  max_line?: number;
+}
+
+/** Voz sintética no nosso servidor (Piper). */
+export interface LocalTtsParams {
+  text: string;
+  voice: string;
+  speed?: number;
+  character_id?: string;
   make_subtitles?: boolean;
 }
 

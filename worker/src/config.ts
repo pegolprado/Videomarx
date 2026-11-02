@@ -20,6 +20,12 @@ export interface Config {
   tmpDir: string;
   fontFile: string;
   version: string;
+  /** motor próprio: Whisper (whisper.cpp) e Piper */
+  whisperBin: string;
+  whisperModel: string;
+  piperBin: string;
+  voicesDir: string;
+  localThreads: number;
 }
 
 export function loadConfig(): Config {
@@ -34,6 +40,11 @@ export function loadConfig(): Config {
     pollMs: Math.max(1000, Number(process.env.WORKER_POLL_MS || 3000)),
     tmpDir: process.env.WORKER_TMP_DIR || join(tmpdir(), 'videoai-worker'),
     fontFile: process.env.FONT_FILE || '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
-    version: process.env.WORKER_VERSION || '0.1.0',
+    version: process.env.WORKER_VERSION || '0.2.0',
+    whisperBin: process.env.WHISPER_BIN || '/usr/local/bin/whisper-cli',
+    whisperModel: process.env.WHISPER_MODEL_PATH || '/models/whisper.bin',
+    piperBin: process.env.PIPER_BIN || '/opt/piper/piper',
+    voicesDir: process.env.PIPER_VOICES_DIR || '/voices',
+    localThreads: Math.max(1, Number(process.env.LOCAL_AI_THREADS || 2)),
   };
 }

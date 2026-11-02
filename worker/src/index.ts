@@ -10,6 +10,7 @@ import { run } from './ffmpeg.ts';
 import { supportedKinds } from './handlers/index.ts';
 import { runMaintenance } from './maintenance.ts';
 import { TextAdapter } from './providers/anthropic.ts';
+import { detectLocal } from './providers/local.ts';
 import { RunwayAdapter } from './providers/runway.ts';
 import { processJob } from './runner.ts';
 import { Storage } from './storage.ts';
@@ -38,7 +39,17 @@ const running = new Set<Promise<unknown>>();
 
 async function main() {
   await mkdir(config.tmpDir, { recursive: true });
-  const caps = { ffmpeg: await hasFfmpeg(), runway: !!runway, anthropic: !!text };
+  const ffmpegOk = await hasFfmpeg();
+  const local = await detectLocal(config);
+  const caps = {
+    ffmpeg: ffmpegOk,
+    runway: !!runway,
+    anthropic: !!text,
+    local: ffmpegOk && (local.transcribe || local.tts),
+    local_transcribe: local.transcribe,
+    local_tts: local.tts,
+    local_voices: local.voices,
+  };
   const kinds = supportedKinds(caps);
   log('worker.start', { id: config.workerId, version: config.version, caps, kinds });
   if (!kinds.length) log('worker.warning', { message: 'Nenhuma capacidade disponível: instale o FFmpeg e/ou configure as chaves de API.' });

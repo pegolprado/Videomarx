@@ -22,3 +22,11 @@ export const TTS_LANGUAGES = [
 export function isVoicePreset(v: string): v is RunwayVoicePreset {
   return (RUNWAY_VOICE_PRESETS as readonly string[]).includes(v);
 }
+
+/** Nome amigável para vozes do Piper (ex.: "pt_BR-faber-medium" → "Faber (pt-BR, média)"). */
+export function piperVoiceLabel(id: string): string {
+  const m = id.match(/^([a-z]{2})_([A-Z]{2})-([^-]+)-(x_low|low|medium|high)$/);
+  if (!m) return id;
+  const quality = { x_low: 'muito leve', low: 'leve', medium: 'média', high: 'alta' }[m[4]];
+  return `${m[3].charAt(0).toUpperCase()}${m[3].slice(1)} (${m[1]}-${m[2]}, ${quality})`;
+}
