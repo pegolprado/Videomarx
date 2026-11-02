@@ -1,7 +1,7 @@
 #!/bin/bash
-# VideoAI Studio — instalação automática do worker numa máquina Oracle Cloud (Ubuntu).
-# Cole este script em "Initialization script / cloud-init" ao criar a instância.
-# Troque APENAS a linha SERVICE_ROLE_KEY (e, se já tiver, as chaves de IA).
+# VideoAI Studio - instalacao automatica do worker (Oracle Cloud, Ubuntu).
+# Somente caracteres ASCII: o console da Oracle recusa acentos e travessoes.
+# Troque APENAS a linha SERVICE_ROLE_KEY (e, se tiver, as chaves de IA).
 set -euxo pipefail
 
 SERVICE_ROLE_KEY='COLE_AQUI_A_CHAVE_SERVICE_ROLE'
@@ -9,7 +9,7 @@ RUNWAY_KEY=''
 ANTHROPIC_KEY=''
 SUPABASE_URL='https://qsljtyhjlxbkcvvzmwtn.supabase.co'
 
-# memória extra (swap) para máquinas pequenas
+# memoria extra (swap) para maquinas pequenas
 if ! swapon --show | grep -q /swapfile; then
   fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
   echo '/swapfile none swap sw 0 0' >> /etc/fstab
@@ -21,7 +21,7 @@ apt-get install -y docker.io git
 apt-get install -y docker-buildx || true
 systemctl enable --now docker
 
-# segredos ficam só nesta máquina, legíveis apenas pelo root
+# segredos ficam so nesta maquina, legiveis apenas pelo root
 cat > /etc/videoai-worker.env <<EOF
 SUPABASE_URL=${SUPABASE_URL}
 SUPABASE_SERVICE_ROLE_KEY=${SERVICE_ROLE_KEY}
@@ -31,7 +31,7 @@ WORKER_CONCURRENCY=2
 EOF
 chmod 600 /etc/videoai-worker.env
 
-# atualização: baixa o código do GitHub e reconstrói o worker quando houver mudança
+# atualizacao: baixa o codigo do GitHub e reconstroi o worker quando houver mudanca
 cat > /usr/local/bin/videoai-update <<'EOS'
 #!/bin/bash
 set -euo pipefail
@@ -57,7 +57,7 @@ fi
 EOS
 chmod 755 /usr/local/bin/videoai-update
 
-# verifica atualizações a cada hora
+# verifica atualizacoes a cada hora
 echo '17 * * * * root /usr/local/bin/videoai-update >> /var/log/videoai-update.log 2>&1' > /etc/cron.d/videoai-update
 
 /usr/local/bin/videoai-update >> /var/log/videoai-update.log 2>&1
