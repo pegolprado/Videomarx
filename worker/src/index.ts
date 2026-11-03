@@ -53,7 +53,7 @@ function rebuildProviders() {
   providers = {
     runway: runwayKey ? RunwayAdapter.create(runwayKey) : undefined,
     text: anthropicKey ? TextAdapter.create(anthropicKey, config.anthropicModel) : undefined,
-    gemini: geminiKey ? GeminiAdapter.create(geminiKey, config.geminiModel) : undefined,
+    gemini: geminiKey ? GeminiAdapter.create(geminiKey, config.geminiModel, config.geminiFallbacks) : undefined,
     cloudflare: cfAccount && cfToken ? new CloudflareAI(cfAccount, cfToken) : undefined,
   };
   log('providers.updated', { runway: !!providers.runway, anthropic: !!providers.text, gemini: !!providers.gemini, cloudflare: !!providers.cloudflare });

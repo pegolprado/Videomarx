@@ -50,13 +50,17 @@ title: título curto do vídeo.${who}`,
   const narrations = splitNarration(p.script ?? '', p.split ?? 'paragraph').slice(0, MAX_SCENES);
   if (!narrations.length) throw new JobError('invalid_params', 'Escreva o roteiro.');
   let prompts = narrations;
+  // no roteiro pronto, o Gemini só melhora as descrições das imagens: se estiver congestionado, segue sem ele
   if (ctx.gemini) {
-    const { data } = await ctx.gemini.generate(
+    const res = await ctx.gemini.generate(
       TEXT_SYSTEM,
       `Para cada trecho de narração abaixo, escreva uma descrição visual concreta em inglês (image_prompt) para ilustrá-lo, sem texto escrito na imagem. Devolva exatamente ${narrations.length} itens em "prompts", na mesma ordem.${who}\n${JSON.stringify(narrations)}`,
       PromptsSchema,
-    );
-    if (data.prompts.length === narrations.length) prompts = data.prompts;
+    ).catch((e: Error) => {
+      if (e instanceof JobError && e.code === 'provider_auth') throw e;
+      return null;
+    });
+    if (res && res.data.prompts.length === narrations.length) prompts = res.data.prompts;
   }
   return { title: narrations[0].slice(0, 60), scenes: narrations.map((narration, i) => ({ narration, image_prompt_en: prompts[i] })) };
 }

@@ -35,9 +35,13 @@ export async function loadSettings(db: SupabaseClient): Promise<Settings> {
   };
 }
 
-/** Espera exponencial para falhas temporárias: 15 s, 30 s, 60 s… (máx. 10 min). */
+/**
+ * Espera crescente para falhas temporárias (provedor congestionado, rede):
+ * 30 s, 2 min, 8 min… (máx. 15 min). Congestionamentos de planos grátis
+ * costumam durar alguns minutos.
+ */
 export function backoffSeconds(attempt: number): number {
-  return Math.min(600, 15 * 2 ** Math.max(0, attempt - 1));
+  return Math.min(900, 30 * 4 ** Math.max(0, attempt - 1));
 }
 
 export async function processJob(job: JobRow, deps: RunnerDeps): Promise<'succeeded' | 'failed' | 'canceled' | 'requeued'> {

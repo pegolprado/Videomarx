@@ -13,6 +13,7 @@ export interface Config {
   serviceRoleKey: string;
   anthropicModel: string;
   geminiModel: string;
+  geminiFallbacks?: string[];
   workerId: string;
   concurrency: number;
   pollMs: number;
@@ -34,6 +35,7 @@ export function loadConfig(): Config {
     anthropicModel: process.env.ANTHROPIC_MODEL || 'claude-opus-5-5',
     // alias do Google que aponta para o Flash mais recente (plano gratuito)
     geminiModel: process.env.GEMINI_MODEL || 'gemini-flash-latest',
+    geminiFallbacks: process.env.GEMINI_FALLBACK_MODELS ? process.env.GEMINI_FALLBACK_MODELS.split(',').map((m) => m.trim()).filter(Boolean) : undefined,
     workerId: process.env.WORKER_ID || `${hostname()}-${process.pid}`,
     concurrency: Math.max(1, Number(process.env.WORKER_CONCURRENCY || 2)),
     pollMs: Math.max(1000, Number(process.env.WORKER_POLL_MS || 3000)),

@@ -39,7 +39,7 @@ describe('processJob', () => {
     expect(await processJob(job({ attempts: 2 }), { db, config, storage: {} as never, text: text as never })).toBe('requeued');
     const [name, args] = db.rpc.mock.calls.at(-1) as unknown as [string, Record<string, unknown>];
     expect(name).toBe('worker_requeue');
-    expect(args.p_delay_seconds).toBe(30);
+    expect(args.p_delay_seconds).toBe(120);
   });
 
   it('cancelamento pedido antes de começar', async () => {
@@ -56,6 +56,6 @@ describe('processJob', () => {
   });
 
   it('espera exponencial limitada', () => {
-    expect([1, 2, 3, 10].map(backoffSeconds)).toEqual([15, 30, 60, 600]);
+    expect([1, 2, 3, 10].map(backoffSeconds)).toEqual([30, 120, 480, 900]);
   });
 });

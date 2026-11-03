@@ -422,7 +422,7 @@ function AutoVideo() {
       <Button variant="primary" size="lg" disabled={!!blocker || busy} loading={busy} onClick={start}>
         <Wand2 className="size-4" /> Criar vídeo automático (grátis)
       </Button>
-      {jobs.data?.map((j) => <JobCard key={j.id} job={j} />)}
+      {jobs.data?.map((j) => <JobCard key={j.id} job={j} onRetry={blocker ? undefined : start} />)}
     </Card>
   );
 }

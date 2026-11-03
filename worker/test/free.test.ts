@@ -78,7 +78,7 @@ describe('Gemini', () => {
   const schema = z.object({ prompt_en: z.string(), notes_pt: z.string() });
   it('pede JSON com esquema e valida a resposta', async () => {
     const generateContent = vi.fn(async () => ({ text: '{"prompt_en":"a cat","notes_pt":"ok"}', usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 5 } }));
-    const g = new GeminiAdapter({ generateContent } as never, 'gemini-flash-latest');
+    const g = new GeminiAdapter({ generateContent } as never, 'gemini-flash-latest', [], []);
     const r = await g.generate('sistema', 'pedido', schema);
     expect(r).toMatchObject({ data: { prompt_en: 'a cat' }, usd: 0 });
     const req = (generateContent.mock.calls[0] as unknown as [{ config: Record<string, unknown> }])[0];
@@ -87,12 +87,25 @@ describe('Gemini', () => {
     expect(req.config.responseJsonSchema).not.toHaveProperty('$schema');
   });
   it('resposta fora do formato vira erro claro; limite grátis tenta de novo', async () => {
-    const bad = new GeminiAdapter({ generateContent: async () => ({ text: '{"x":1}' }) } as never, 'm');
+    const bad = new GeminiAdapter({ generateContent: async () => ({ text: '{"x":1}' }) } as never, 'm', [], []);
     await expect(bad.generate('s', 'u', schema)).rejects.toBeInstanceOf(JobError);
-    const limited = new GeminiAdapter({ generateContent: async () => { throw new ApiError({ message: 'quota', status: 429 }); } } as never, 'm');
+    const limited = new GeminiAdapter({ generateContent: async () => { throw new ApiError({ message: 'quota', status: 429 }); } } as never, 'm', ['m2'], [0]);
     await expect(limited.generate('s', 'u', schema)).rejects.toBeInstanceOf(TransientError);
-    const auth = new GeminiAdapter({ generateContent: async () => { throw new ApiError({ message: 'bad key', status: 403 }); } } as never, 'm');
+    const auth = new GeminiAdapter({ generateContent: async () => { throw new ApiError({ message: 'bad key', status: 403 }); } } as never, 'm', [], []);
     await expect(auth.generate('s', 'u', schema)).rejects.toMatchObject({ code: 'provider_auth' });
+  });
+  it('congestionado (503): tenta de novo e depois passa para outro modelo grátis; modelo inexistente (404) é pulado', async () => {
+    const calls: string[] = [];
+    const generateContent = vi.fn(async ({ model }: { model: string }) => {
+      calls.push(model);
+      if (model === 'principal') throw new ApiError({ message: 'high demand', status: 503 });
+      if (model === 'sumiu') throw new ApiError({ message: 'not found', status: 404 });
+      return { text: '{"prompt_en":"ok","notes_pt":"ok"}' };
+    });
+    const g = new GeminiAdapter({ generateContent } as never, 'principal', ['sumiu', 'reserva'], [0, 0]);
+    const r = await g.generate('s', 'u', schema);
+    expect(r.usage.model).toBe('reserva');
+    expect(calls).toEqual(['principal', 'principal', 'principal', 'sumiu', 'reserva']);
   });
 });
 
