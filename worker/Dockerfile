@@ -1,9 +1,10 @@
-# Worker do VideoAI Studio (FFmpeg + motor próprio + provedores de IA).
+# Worker do VideoAI Studio (FFmpeg + motor próprio + modelos animados + provedores de IA).
 # Contexto de build: raiz do repositório →  docker build -f worker/Dockerfile -t videoai-worker .
 #
 # Motor próprio (roda na CPU, sem custo por uso):
 #   - Whisper via whisper.cpp (MIT) + modelo multilíngue da OpenAI (MIT) → legendas automáticas
 #   - Piper (MIT) + vozes em português (licença de cada voz: ver docs/MOTOR_PROPRIO.md) → voz
+#   - HyperFrames (Apache 2.0) + Chromium → modelos animados (texto e imagens → vídeo)
 # As etapas abaixo não dependem do código do app: o Docker as reaproveita entre atualizações.
 
 # ---- Whisper (compilado uma vez) -------------------------------------------
@@ -44,6 +45,7 @@ RUN mkdir -p /voices && first=1 && for v in ${PIPER_VOICES}; do \
 FROM node:22-bookworm-slim
 RUN apt-get update \
  && apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core ca-certificates libgomp1 \
+      chromium fonts-liberation fonts-noto-color-emoji \
  && rm -rf /var/lib/apt/lists/*
 COPY --from=whisper /usr/local/bin/whisper-cli /usr/local/bin/whisper-cli
 COPY --from=whisper /models /models
@@ -55,6 +57,7 @@ RUN cd worker && npm ci
 COPY shared shared
 COPY worker worker
 RUN cd worker && npm run build && npm prune --omit=dev
-ENV NODE_ENV=production WORKER_TMP_DIR=/tmp/videoai-worker LOCAL_AI_THREADS=2
+ENV NODE_ENV=production WORKER_TMP_DIR=/tmp/videoai-worker LOCAL_AI_THREADS=2 \
+    HYPERFRAMES_BROWSER_PATH=/usr/bin/chromium HYPERFRAMES_NO_TELEMETRY=1 HYPERFRAMES_SKIP_SKILLS=1
 USER node
 CMD ["node", "worker/dist/index.js"]

@@ -6,6 +6,9 @@
  */
 import type { Capabilities } from './capabilities';
 
+/** motores que executam transformações: hf = GPU grátis do Hugging Face */
+export type TransformEngine = 'fal' | 'hf' | 'runway';
+
 export type TransformModeId = 'face_swap' | 'head' | 'full_body' | 'appearance' | 'stylized' | 'cinematic';
 
 export interface TransformMode {
@@ -16,9 +19,11 @@ export interface TransformMode {
   /** como o pipeline funciona hoje — mostrado ao usuário */
   how: string;
   /** integrações capazes de executar o modo, em ordem de preferência; vazio = nenhuma */
-  providers: ('fal' | 'runway')[];
+  providers: TransformEngine[];
   /** como funciona com a fal.ai (quando suportado) */
   howFal?: string;
+  /** como funciona na GPU grátis do Hugging Face (quando suportado) */
+  howHf?: string;
   pipeline: string[];
   limits: string;
 }
@@ -51,7 +56,8 @@ export const TRANSFORM_MODES: TransformMode[] = [
     summary: 'O personagem executa a atuação do vídeo: expressões, gestos e movimentos do corpo.',
     how: 'Runway Act-Two: a imagem principal do personagem é animada usando o seu vídeo como referência de atuação (controle corporal ligado). O resultado usa o cenário da imagem do personagem.',
     howFal: 'fal.ai — Wan 2.2 Animate Replace: a pessoa do seu vídeo é substituída pelo personagem no MESMO cenário, mantendo movimentos, gestos, expressões e iluminação.',
-    providers: ['fal', 'runway'],
+    howHf: 'GRÁTIS — Wan 2.2 Animate na GPU gratuita do Hugging Face (modo "Character Swap"): troca a pessoa pelo personagem no mesmo cenário. Cota diária pequena (cerca de 1 a 3 trechos curtos por dia), fila pública e resolução baixa.',
+    providers: ['fal', 'hf', 'runway'],
     pipeline: ['runway.act_two'],
     limits: 'Trecho de 3 a 30 s. O rosto precisa estar visível e dentro do quadro.',
   },
@@ -82,7 +88,8 @@ export const TRANSFORM_MODES: TransformMode[] = [
     summary: 'Usa o vídeo como referência de movimento para criar uma cena nova com o personagem.',
     how: 'Gera uma imagem do personagem no cenário descrito (Runway Gen-4 Image) e a anima com a atuação do seu vídeo (Runway Act-Two).',
     howFal: 'fal.ai — Wan 2.2 Animate Move: o personagem, no cenário da imagem dele, repete os movimentos e expressões do seu vídeo.',
-    providers: ['fal', 'runway'],
+    howHf: 'GRÁTIS — Wan 2.2 Animate na GPU gratuita do Hugging Face (modo de movimento): o personagem repete os movimentos do vídeo. Cota diária pequena e fila pública.',
+    providers: ['fal', 'hf', 'runway'],
     pipeline: ['runway.gen4_image', 'runway.act_two'],
     limits: 'Trecho de 3 a 30 s.',
   },
@@ -92,7 +99,7 @@ export interface ModeAvailability {
   mode: TransformMode;
   available: boolean;
   /** motores configurados capazes de executar o modo */
-  engines: ('fal' | 'runway')[];
+  engines: TransformEngine[];
   reason?: string;
 }
 

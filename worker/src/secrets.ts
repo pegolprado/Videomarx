@@ -5,7 +5,7 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-export const SECRET_NAMES = ['RUNWAYML_API_SECRET', 'ANTHROPIC_API_KEY', 'GEMINI_API_KEY', 'CLOUDFLARE_ACCOUNT_ID', 'CLOUDFLARE_API_TOKEN', 'FAL_KEY'] as const;
+export const SECRET_NAMES = ['RUNWAYML_API_SECRET', 'ANTHROPIC_API_KEY', 'GEMINI_API_KEY', 'CLOUDFLARE_ACCOUNT_ID', 'CLOUDFLARE_API_TOKEN', 'FAL_KEY', 'HF_TOKEN', 'POLLINATIONS_KEY'] as const;
 export type SecretName = (typeof SECRET_NAMES)[number];
 
 export class SecretStore {

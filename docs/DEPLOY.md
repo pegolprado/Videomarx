@@ -5,7 +5,7 @@ Você vai precisar de: conta no **Supabase**, conta no **Cloudflare** (onde o do
 ## 1. Supabase
 
 1. Crie um projeto **novo** (não reaproveite o do ATLAS), região São Paulo.
-2. SQL Editor → New query → cole **todo** o conteúdo de `supabase/setup.sql` → Run. (Equivale a aplicar `supabase/migrations/` em ordem.)
+2. SQL Editor → New query → cole **todo** o conteúdo de `supabase/setup.sql` → Run. (Equivale a aplicar `supabase/migrations/` em ordem.) Em um banco já instalado, rode só as migrações novas, em ordem (a mais recente: `20261106001000_free_gpu.sql`).
 3. Authentication → URL Configuration: Site URL `https://video.iamarx.com.br`; Redirect URLs `https://video.iamarx.com.br/**` e o endereço `*.workers.dev` do site.
 4. Os e-mails em `admin_emails` (Admin → Configurações) viram administradores automaticamente no cadastro.
 5. Plano Free: arquivos de até 50 MB (já configurado). No plano Pro, aumente `max_upload_mb` e o limite do bucket `media`.

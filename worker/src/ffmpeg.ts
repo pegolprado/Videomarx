@@ -7,12 +7,15 @@ export interface RunResult {
   stderr: string;
 }
 
-export function run(cmd: string, args: string[], timeoutMs = 30 * 60_000): Promise<RunResult> {
+export function run(cmd: string, args: string[], timeoutMs = 30 * 60_000, opts: { env?: NodeJS.ProcessEnv; cwd?: string } = {}): Promise<RunResult> {
   return new Promise((resolve, reject) => {
-    const p = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+    const p = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'], env: opts.env, cwd: opts.cwd });
     let stdout = '';
     let stderr = '';
-    p.stdout.on('data', (d) => (stdout += d));
+    p.stdout.on('data', (d) => {
+      stdout += d;
+      if (stdout.length > 2_000_000) stdout = stdout.slice(-1_000_000);
+    });
     p.stderr.on('data', (d) => {
       stderr += d;
       if (stderr.length > 2_000_000) stderr = stderr.slice(-1_000_000);
@@ -97,9 +100,9 @@ export async function frameAt(input: string, output: string, seconds: number, wi
  * Prepara um trecho para envio ao provedor: corta, limita a 720p e
  * converte para H.264/AAC (arquivo pequeno e compatível).
  */
-export async function prepareClip(input: string, output: string, start: number, duration: number, hasAudio: boolean, fps?: number): Promise<void> {
+export async function prepareClip(input: string, output: string, start: number, duration: number, hasAudio: boolean, fps?: number, maxSide = 1280): Promise<void> {
   const args = ['-y', '-ss', start.toFixed(3), '-t', duration.toFixed(3), '-i', input,
-    '-vf', `scale='if(gt(iw,ih),min(1280,iw),-2)':'if(gt(iw,ih),-2,min(1280,ih))'${fps ? `,fps=${fps}` : ''},format=yuv420p`,
+    '-vf', `scale='if(gt(iw,ih),min(${maxSide},iw),-2)':'if(gt(iw,ih),-2,min(${maxSide},ih))'${fps ? `,fps=${fps}` : ''},format=yuv420p`,
     '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23', '-movflags', '+faststart'];
   if (hasAudio) args.push('-c:a', 'aac', '-b:a', '128k');
   else args.push('-an');

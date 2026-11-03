@@ -166,3 +166,47 @@ begin
   raise notice 'fal ok';
 end $$;
 rollback;
+
+-- GPU grátis (Hugging Face), Pollinations e modelos animados
+begin;
+do $$
+declare
+  v_u uuid := tests.create_user('gratis@teste.com');
+  v_video uuid := tests.make_video(v_u, 6);
+  v_long uuid := tests.make_video(v_u, 20);
+  v_img uuid := gen_random_uuid(); v_aud uuid := gen_random_uuid();
+  v_est jsonb;
+  v_job public.jobs;
+begin
+  insert into public.assets (id, user_id, kind, category, path, probe_status, duration_s) values
+    (v_img, v_u, 'image', 'generated', v_u || '/g/i.jpg', 'ok', null), (v_aud, v_u, 'audio', 'generated', v_u || '/g/a.mp3', 'ok', 3.2);
+  update public.app_settings set value = '0' where key = 'monthly_budget_usd';
+  perform tests.login(v_u);
+  v_est := public.estimate_job('ai.transform', '{"engine":"hf","mode":"full_body"}', array[v_video]);
+  perform tests.assert_eq(v_est ->> 'provider', 'hf', 'troca grátis pelo Hugging Face');
+  perform tests.assert_eq((v_est ->> 'credits')::int, 0, 'troca grátis custa 0');
+  perform tests.assert_eq(jsonb_array_length(v_est -> 'errors'), 0, 'trecho de 6 s cabe no limite grátis de 8 s');
+  v_est := public.estimate_job('ai.transform', '{"engine":"hf","mode":"full_body","trim_start":0,"trim_end":5}', array[v_long]);
+  perform tests.assert_eq(jsonb_array_length(v_est -> 'errors'), 0, 'trecho de 5 s aceito no grátis');
+  v_est := public.estimate_job('ai.transform', '{"engine":"hf","mode":"full_body"}', array[v_long]);
+  perform tests.assert(jsonb_array_length(v_est -> 'errors') > 0, 'trecho de 20 s recusado no grátis');
+  v_est := public.estimate_job('ai.transform', '{"engine":"hf","mode":"stylized"}', array[v_video]);
+  perform tests.assert(jsonb_array_length(v_est -> 'errors') > 0, 'modo sem suporte no grátis');
+  v_est := public.estimate_job('ai.video', '{"engine":"hf"}', '{}');
+  perform tests.assert_eq((v_est ->> 'credits')::int, 0, 'vídeo grátis custa 0');
+  v_est := public.estimate_job('ai.video', '{"engine":"pollinations"}', '{}');
+  perform tests.assert_eq((v_est ->> 'credits')::int, 5, 'Pollinations: 5 créditos por vídeo');
+  perform tests.assert_eq(v_est ->> 'provider', 'pollinations', 'provedor pollinations');
+  v_est := public.estimate_job('ai.talk', '{"engine":"hf"}', array[v_img, v_aud]);
+  perform tests.assert_eq((v_est ->> 'credits')::int, 0, 'falar grátis custa 0');
+  v_job := public.create_job('ai.talk', '{"engine":"hf"}', array[v_img, v_aud], null, 'talk-hf-0001', 0);
+  perform tests.assert_eq(v_job.provider, 'hf', 'tarefa grátis registrada no hf');
+  v_job := public.create_job('media.motion', '{"template":"kinetic"}', array[v_img, v_aud], null, 'motion-00001', 0);
+  perform tests.assert_eq(v_job.provider, 'motion', 'modelo animado no servidor');
+  perform tests.assert_eq(v_job.estimated_credits, 0, 'modelo animado grátis');
+  perform tests.assert_fails(format($q$select public.create_job('media.motion', '{}', array[%L]::uuid[], null, 'motion-00002', 0)$q$, v_video), 'modelo animado não aceita vídeo');
+  perform tests.logout();
+  insert into public.provider_secrets (name, value) values ('HF_TOKEN', 'hf_123456789'), ('POLLINATIONS_KEY', 'sk_123456789');
+  raise notice 'gratis ok';
+end $$;
+rollback;

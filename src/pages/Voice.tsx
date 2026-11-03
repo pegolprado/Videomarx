@@ -109,9 +109,14 @@ export default function Voice() {
   );
 }
 
-/** Personagem falando: uma imagem + um áudio → vídeo com a boca sincronizada (VEED Fabric via fal.ai). */
+/** Personagem falando: uma imagem + um áudio → vídeo com a boca sincronizada (VEED Fabric via fal.ai, ou GPU grátis). */
 function TalkCard() {
   const fal = useIntegration('fal');
+  const hf = useIntegration('hf');
+  const [enginePref, setEnginePref] = useState<'hf' | 'fal'>('hf');
+  const engine: 'hf' | 'fal' = enginePref === 'hf' ? (hf.ok || !fal.ok ? 'hf' : 'fal') : fal.ok || !hf.ok ? 'fal' : 'hf';
+  const st = engine === 'hf' ? hf : fal;
+  const maxSeconds = engine === 'hf' ? 15 : 30;
   const images = useAssets({ kind: 'image', limit: 60 });
   const audios = useAssets({ kind: 'audio', limit: 60 });
   const [imageId, setImageId] = useState('');
@@ -126,18 +131,22 @@ function TalkCard() {
     <Card className="flex flex-col gap-3">
       <p className="font-display text-lg font-semibold">Personagem falando (boca sincronizada)</p>
       <p className="text-sm text-muted">Escolha a imagem do personagem (pode ser um animal ou desenho) e um áudio — por exemplo, uma voz gerada acima. O personagem fala o áudio, mexendo a boca e a cabeça.</p>
-      <IntegrationGate provider="fal" feature="Personagem falando (fal.ai)" />
-      <div className="grid gap-3 md:grid-cols-3">
+      <IntegrationGate provider={engine} feature={engine === 'hf' ? 'Personagem falando grátis (GPU do Hugging Face)' : 'Personagem falando (fal.ai)'} />
+      <div className="grid gap-3 md:grid-cols-4">
+        <Field label="Motor">
+          {(i) => <Select id={i} value={engine} onChange={(e) => setEnginePref(e.target.value as 'hf')} options={[{ value: 'hf', label: 'GRÁTIS — GPU do Hugging Face (experimental)' }, { value: 'fal', label: 'fal.ai — VEED Fabric (pago)' }]} />}
+        </Field>
         <Field label="Imagem">{(i) => <Select id={i} value={imageId} onChange={(e) => setImageId(e.target.value)} options={[{ value: '', label: 'Escolha uma imagem…' }, ...okImages.map((a) => ({ value: a.id, label: a.name }))]} />}</Field>
-        <Field label="Áudio (até 30 s)">{(i) => <Select id={i} value={audioId} onChange={(e) => setAudioId(e.target.value)} options={[{ value: '', label: 'Escolha um áudio…' }, ...okAudios.map((a) => ({ value: a.id, label: `${a.name} (${Math.round(Number(a.duration_s ?? 0))} s)` }))]} />}</Field>
-        <Field label="Qualidade">{(i) => <Select id={i} value={resolution} onChange={(e) => setResolution(e.target.value as '480p')} options={[{ value: '480p', label: '480p — econômica' }, { value: '720p', label: '720p — melhor' }]} />}</Field>
+        <Field label={`Áudio (até ${maxSeconds} s)`}>{(i) => <Select id={i} value={audioId} onChange={(e) => setAudioId(e.target.value)} options={[{ value: '', label: 'Escolha um áudio…' }, ...okAudios.map((a) => ({ value: a.id, label: `${a.name} (${Math.round(Number(a.duration_s ?? 0))} s)` }))]} />}</Field>
+        {engine === 'fal' && <Field label="Qualidade">{(i) => <Select id={i} value={resolution} onChange={(e) => setResolution(e.target.value as '480p')} options={[{ value: '480p', label: '480p — econômica' }, { value: '720p', label: '720p — melhor' }]} />}</Field>}
       </div>
-      {audio && Number(audio.duration_s) > 30 && <Notice tone="warning">Esse áudio tem mais de 30 segundos. Corte-o no Editor ou gere uma fala menor.</Notice>}
+      {engine === 'hf' && <Notice>Motor grátis e experimental: usa um Space público do Hugging Face com cota diária pequena; falas curtas funcionam melhor. Se o Space mudar, o administrador pode indicar outro em Admin → Configurações (hf_space_talk).</Notice>}
+      {audio && Number(audio.duration_s) > maxSeconds && <Notice tone="warning">Esse áudio tem mais de {maxSeconds} segundos. Corte-o no Editor ou gere uma fala menor.</Notice>}
       <CostConfirm
         kind="ai.talk"
-        params={{ resolution }}
+        params={engine === 'hf' ? { engine } : { engine, resolution }}
         inputs={imageId && audioId ? [imageId, audioId] : []}
-        disabled={!fal.ok ? fal.reason : !imageId || !audioId ? 'Escolha a imagem e o áudio.' : false}
+        disabled={!st.ok ? st.reason : !imageId || !audioId ? 'Escolha a imagem e o áudio.' : false}
         label="Fazer o personagem falar"
         onCreated={(j) => setJobIds((ids) => [j.id, ...ids])}
       />

@@ -6,6 +6,13 @@ import type { RunwayAdapter } from './providers/runway.ts';
 import type { TextGenerator } from './providers/anthropic.ts';
 import type { CloudflareAI } from './providers/cloudflare.ts';
 import type { FalAdapter } from './providers/fal.ts';
+import type { GradioSpace } from './providers/gradio.ts';
+import type { PollinationsAdapter } from './providers/pollinations.ts';
+
+/** GPU grátis do Hugging Face: abre um Space (com o token, se houver). */
+export interface HfProvider {
+  open(space: string): GradioSpace;
+}
 
 export interface JobRow {
   id: string;
@@ -90,6 +97,10 @@ export interface JobContext {
   cloudflare?: CloudflareAI;
   /** fal.ai (pago por uso) */
   fal?: FalAdapter;
+  /** GPU grátis do Hugging Face */
+  hf?: HfProvider;
+  /** Pollinations (pago por uso) */
+  pollinations?: PollinationsAdapter;
   workDir: string;
   inputs: AssetRow[];
   /** registra progresso/estado (estado sobrevive a quedas do worker) */

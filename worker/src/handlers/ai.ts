@@ -15,6 +15,8 @@ import { spentCredits } from '../providers/runway.ts';
 import { ScenePromptSchema, SocialPackSchema, SplitScriptSchema } from '../providers/anthropic.ts';
 import { saveOutput } from './media.ts';
 import type { AssetRow, CharacterRow, Handler, JobContext } from '../types.ts';
+import { hfTalk, hfTransform, hfVideo } from './hf.ts';
+import { pollinationsVideo } from './pollinations.ts';
 
 function runwayOf(ctx: JobContext) {
   if (!ctx.runway) throw new JobError('not_configured', 'A integração com a Runway não está configurada neste servidor.');
@@ -32,7 +34,7 @@ interface CharacterRefs {
   refs: { uri: string; tag: string }[];
 }
 
-async function characterRefs(ctx: JobContext, characterId: string, max = 3): Promise<CharacterRefs> {
+export async function characterRefs(ctx: JobContext, characterId: string, max = 3): Promise<CharacterRefs> {
   const character = await ctx.loadCharacter(characterId);
   if (character.user_id !== ctx.job.user_id) throw new JobError('forbidden', 'Personagem inválido.');
   const { data } = await ctx.db
@@ -52,7 +54,7 @@ async function characterRefs(ctx: JobContext, characterId: string, max = 3): Pro
   return { character, primaryUrl: primary ? refs[0].uri : null, refs };
 }
 
-async function storeFromUrl(ctx: JobContext, url: string, fallbackExt: string): Promise<string> {
+export async function storeFromUrl(ctx: JobContext, url: string, fallbackExt: string): Promise<string> {
   const local = join(ctx.workDir, `${randomUUID()}.${extFromUrl(url, fallbackExt)}`);
   await downloadUrl(url, local);
   return local;
@@ -142,6 +144,8 @@ async function cloudflareImage(ctx: JobContext, p: ImageParams) {
 export const videoHandler: Handler = async (ctx) => {
   const p = ctx.job.params as unknown as VideoParams;
   if (p.engine === 'fal' || p.model === 'fal-wan2.2') return falVideo(ctx, p);
+  if (p.engine === 'hf' || p.model === 'hf-wan2.2') return hfVideo(ctx, p);
+  if (p.engine === 'pollinations' || p.model === 'pollinations-wan2.2') return pollinationsVideo(ctx, p);
   const runway = runwayOf(ctx);
   const aspect = assertAspect(p.aspect);
   const spec = VIDEO_MODELS.find((m) => m.id === p.model);
@@ -195,6 +199,7 @@ const OUTFIT_TEXT = {
 export const transformHandler: Handler = async (ctx) => {
   const p = ctx.job.params as unknown as TransformParams;
   if (p.engine === 'fal') return falTransform(ctx, p);
+  if (p.engine === 'hf') return hfTransform(ctx, p);
   const runway = runwayOf(ctx);
   if (!['full_body', 'appearance', 'stylized', 'cinematic'].includes(p.mode)) {
     throw new JobError('unsupported_mode', 'Este modo ainda não tem integração capaz de executá-lo.');
@@ -412,14 +417,7 @@ async function falTransform(ctx: JobContext, p: TransformParams) {
     ...(p.seed ? { seed: p.seed } : {}),
   }, { label: p.mode === 'full_body' ? 'Troca de personagem' : 'Transferência de movimento', range: [0.1, 0.9] });
   const local = await storeFromUrl(ctx, url, 'mp4');
-  // a saída da Wan vem sem som: devolve o áudio original do trecho
-  let finalLocal = local;
-  if (src.has_audio) {
-    const original = join(ctx.workDir, 'original-audio.' + (src.path.split('.').pop() || 'mp4'));
-    await ctx.storage.download(src.path, original);
-    finalLocal = join(ctx.workDir, 'com-audio.mp4');
-    await ffmpeg(['-y', '-i', local, '-ss', start.toFixed(3), '-t', (end - start).toFixed(3), '-i', original, '-map', '0:v:0', '-map', '1:a:0?', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '160k', '-shortest', '-movflags', '+faststart', finalLocal]);
-  }
+  const finalLocal = await withOriginalAudio(ctx, src, local, start, end);
   const asset = await saveOutput(ctx, finalLocal, {
     name: `${src.name} → ${character.name}`,
     category: 'transformed',
@@ -431,8 +429,19 @@ async function falTransform(ctx: JobContext, p: TransformParams) {
   return { outputs: [asset.id], ...falCost(ctx) };
 }
 
+/** A saída da Wan vem sem som: devolve o áudio original do trecho (se houver). */
+export async function withOriginalAudio(ctx: JobContext, src: AssetRow, local: string, start: number, end: number): Promise<string> {
+  if (!src.has_audio) return local;
+  const original = join(ctx.workDir, 'original-audio.' + (src.path.split('.').pop() || 'mp4'));
+  await ctx.storage.download(src.path, original);
+  const out = join(ctx.workDir, `com-audio-${randomUUID()}.mp4`);
+  await ffmpeg(['-y', '-i', local, '-ss', start.toFixed(3), '-t', (end - start).toFixed(3), '-i', original, '-map', '0:v:0', '-map', '1:a:0?', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '160k', '-shortest', '-movflags', '+faststart', out]);
+  return out;
+}
+
 /** Personagem falando: imagem + áudio → vídeo com boca sincronizada (VEED Fabric 1.0). */
 export const talkHandler: Handler = async (ctx) => {
+  if ((ctx.job.params as { engine?: string }).engine === 'hf') return hfTalk(ctx);
   const fal = falOf(ctx);
   const p = ctx.job.params as { resolution?: string };
   const image = ctx.inputs.find((a) => a.kind === 'image');

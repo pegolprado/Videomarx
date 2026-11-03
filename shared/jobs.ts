@@ -16,6 +16,7 @@ export const JOB_KINDS = [
   'local.transcribe',
   'local.tts',
   'pipeline.auto_video',
+  'media.motion',
 ] as const;
 export type JobKind = (typeof JOB_KINDS)[number];
 
@@ -49,9 +50,10 @@ export const KIND_LABEL: Record<JobKind, string> = {
   'local.transcribe': 'Legendas automáticas',
   'local.tts': 'Voz (motor próprio)',
   'pipeline.auto_video': 'Vídeo automático',
+  'media.motion': 'Modelo animado',
 };
 
-export const KIND_PROVIDER: Record<JobKind, 'ffmpeg' | 'runway' | 'anthropic' | 'local' | 'gemini' | 'cloudflare' | 'fal'> = {
+export const KIND_PROVIDER: Record<JobKind, 'ffmpeg' | 'runway' | 'anthropic' | 'local' | 'gemini' | 'cloudflare' | 'fal' | 'hf' | 'pollinations' | 'motion'> = {
   'media.probe': 'ffmpeg',
   'media.trim': 'ffmpeg',
   'media.export': 'ffmpeg',
@@ -67,6 +69,7 @@ export const KIND_PROVIDER: Record<JobKind, 'ffmpeg' | 'runway' | 'anthropic' | 
   'local.transcribe': 'local',
   'local.tts': 'local',
   'pipeline.auto_video': 'ffmpeg',
+  'media.motion': 'motion',
 };
 
 export type Aspect = '9:16' | '16:9' | '1:1';
@@ -165,10 +168,13 @@ export interface ImageParams {
 export type FalResolution = '480p' | '720p';
 
 export interface VideoParams {
-  /** fal = Wan 2.2 a partir de imagem (barato); padrão = Runway */
-  engine?: 'runway' | 'fal';
+  /**
+   * fal = Wan 2.2 a partir de imagem (barato); hf = GPU grátis do Hugging Face (limite diário);
+   * pollinations = Wan 2.2 pago na Pollinations; padrão = Runway
+   */
+  engine?: 'runway' | 'fal' | 'hf' | 'pollinations';
   resolution?: FalResolution;
-  model: 'gen4.5' | 'gen4_turbo' | 'veo3.1' | 'veo3.1_fast' | 'fal-wan2.2';
+  model: 'gen4.5' | 'gen4_turbo' | 'veo3.1' | 'veo3.1_fast' | 'fal-wan2.2' | 'hf-wan2.2' | 'pollinations-wan2.2';
   prompt: string;
   duration: number;
   aspect: Aspect;
@@ -182,8 +188,11 @@ export interface VideoParams {
 }
 
 export interface TransformParams extends TrimParams {
-  /** fal = Wan 2.2 Animate (troca no vídeo original / transferência de movimento); padrão = Runway */
-  engine?: 'runway' | 'fal';
+  /**
+   * fal = Wan 2.2 Animate (troca no vídeo original / transferência de movimento);
+   * hf = o mesmo modelo na GPU grátis do Hugging Face (limite diário); padrão = Runway
+   */
+  engine?: 'runway' | 'fal' | 'hf';
   resolution?: '480p' | '580p' | '720p';
   mode: 'face_swap' | 'head' | 'full_body' | 'appearance' | 'stylized' | 'cinematic';
   character_id: string;
@@ -202,9 +211,29 @@ export interface TransformParams extends TrimParams {
   seed?: number;
 }
 
-/** Personagem falando: imagem + áudio → vídeo com boca sincronizada (VEED Fabric via fal). */
+/** Personagem falando: imagem + áudio → vídeo com boca sincronizada (VEED Fabric via fal, ou GPU grátis do Hugging Face). */
 export interface TalkParams {
+  engine?: 'fal' | 'hf';
   resolution?: FalResolution;
+  /** descrição opcional da cena (motor grátis) */
+  prompt?: string;
+}
+
+export type MotionTemplate = 'kinetic' | 'showcase' | 'launch';
+export type MotionPalette = 'noite' | 'sol' | 'oceano' | 'neon' | 'papel';
+
+/** Modelo animado (HyperFrames, grátis no nosso servidor): textos e imagens → vídeo com animações. */
+export interface MotionParams {
+  template: MotionTemplate;
+  aspect: Aspect;
+  palette: MotionPalette;
+  title: string;
+  /** frases exibidas em sequência (uma por cena) */
+  lines: string[];
+  /** chamada final (opcional) */
+  cta?: string;
+  /** segundos por frase/imagem */
+  seconds_per_item?: number;
 }
 
 export interface TtsParams {

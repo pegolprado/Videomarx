@@ -28,15 +28,23 @@ export const VIDEO_MODELS = [
   { id: 'veo3.1', label: 'Google Veo 3.1 (via Runway)', durations: [4, 6, 8], textToVideo: true, needsImage: false },
   { id: 'veo3.1_fast', label: 'Google Veo 3.1 Fast (via Runway)', durations: [4, 6, 8], textToVideo: true, needsImage: false },
   { id: 'fal-wan2.2', label: 'Wan 2.2 via fal.ai — barato (só a partir de imagem)', durations: [5], textToVideo: false, needsImage: true },
+  { id: 'hf-wan2.2', label: 'Wan 2.2 GRÁTIS — GPU do Hugging Face (poucos vídeos por dia, pode demorar)', durations: [3, 5], textToVideo: true, needsImage: false },
+  { id: 'pollinations-wan2.2', label: 'Wan 2.2 via Pollinations — barato (~US$ 0,05 por vídeo)', durations: [5], textToVideo: true, needsImage: false },
 ] as const;
 
+export type VideoEngine = 'runway' | 'fal' | 'hf' | 'pollinations';
+
 /** motor de cada modelo de vídeo */
-export function videoEngine(model: string): 'runway' | 'fal' {
-  return model === 'fal-wan2.2' ? 'fal' : 'runway';
+export function videoEngine(model: string): VideoEngine {
+  if (model === 'fal-wan2.2') return 'fal';
+  if (model === 'hf-wan2.2') return 'hf';
+  if (model === 'pollinations-wan2.2') return 'pollinations';
+  return 'runway';
 }
 
 export function ratioFor(model: string, aspect: Aspect, textOnly: boolean): string | null {
   if (model === 'fal-wan2.2') return textOnly ? null : aspect;
+  if (model === 'hf-wan2.2' || model === 'pollinations-wan2.2') return aspect;
   const table = textOnly ? TEXT_TO_VIDEO_RATIOS[model] : VIDEO_RATIOS[model];
   return table?.[aspect] ?? null;
 }

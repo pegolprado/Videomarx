@@ -20,6 +20,7 @@ const CharacterEditor = lazy(() => import('./pages/characters/CharacterEditor'))
 const Transform = lazy(() => import('./pages/Transform'));
 const Generate = lazy(() => import('./pages/Generate'));
 const FreeVideo = lazy(() => import('./pages/FreeVideo'));
+const Motion = lazy(() => import('./pages/Motion'));
 const Images = lazy(() => import('./pages/Images'));
 const Viral = lazy(() => import('./pages/Viral'));
 const Voice = lazy(() => import('./pages/Voice'));
@@ -84,6 +85,7 @@ export function App() {
                 <Route path="transformar" element={<Transform />} />
                 <Route path="gerar" element={<Generate />} />
                 <Route path="video-gratis" element={<FreeVideo />} />
+                <Route path="animados" element={<Motion />} />
                 <Route path="imagens" element={<Images />} />
                 <Route path="viral" element={<Viral />} />
                 <Route path="voz" element={<Voice />} />

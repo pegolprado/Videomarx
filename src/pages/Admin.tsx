@@ -250,6 +250,8 @@ const SECRET_FIELDS: Record<string, { name: string; label: string; help: string 
   runway: [{ name: 'RUNWAYML_API_SECRET', label: 'API secret da Runway (pago)', help: 'dev.runwayml.com' }],
   anthropic: [{ name: 'ANTHROPIC_API_KEY', label: 'API key da Anthropic (pago)', help: 'console.anthropic.com' }],
   fal: [{ name: 'FAL_KEY', label: 'API key da fal.ai (pago por uso)', help: 'fal.ai → Dashboard → API Keys → Add key (e adicione saldo em Billing)' }],
+  hf: [{ name: 'HF_TOKEN', label: 'Token do Hugging Face (OPCIONAL, grátis)', help: 'Funciona sem token (cota anônima do servidor). Com token, usa a cota diária da sua conta: huggingface.co → Settings → Access Tokens → Create new token → tipo "Read".' }],
+  pollinations: [{ name: 'POLLINATIONS_KEY', label: 'Chave secreta da Pollinations (sk_…, pago por uso)', help: 'enter.pollinations.ai → entrar → Keys → criar chave secreta (sk_). Vídeo usa só saldo comprado (pacotes a partir de US$ 2).' }],
 };
 
 function IntegrationsAdmin() {
@@ -276,6 +278,9 @@ function IntegrationsAdmin() {
       <Notice>
         Para ligar uma integração: cole a chave no quadro dela, clique em <strong>Salvar</strong> e deixe a integração <strong>habilitada</strong>. As chaves ficam guardadas no banco e só o servidor de processamento consegue lê-las; aqui aparece apenas o final de cada uma.
       </Notice>
+      {list.data && !list.data.some((i) => i.id === 'hf') && (
+        <Notice tone="warning">Faltam as integrações grátis novas (GPU do Hugging Face, modelos animados) e a Pollinations: aplique no Supabase a migração 20261106001000_free_gpu.sql.</Notice>
+      )}
       {secrets.error && <Notice tone="warning">Não foi possível ler as chaves: {errorMessage(secrets.error)}. Aplique no Supabase a migração 20261103000700_free_providers.sql.</Notice>}
       {(list.data ?? []).map((i) => {
         const fields = SECRET_FIELDS[i.id] ?? [];
@@ -327,7 +332,7 @@ function Settings() {
       {(rows.data ?? []).map((r) => (
         <Card key={r.key} className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div><p className="font-mono text-sm">{r.key}</p><p className="text-xs text-muted">{r.description}</p></div>
-          <Input className="sm:w-40" defaultValue={JSON.stringify(r.value)} onBlur={async (e) => {
+          <Input className={r.value && typeof r.value === 'object' ? 'sm:w-[28rem]' : 'sm:w-40'} defaultValue={JSON.stringify(r.value)} onBlur={async (e) => {
             let v: unknown;
             try { v = JSON.parse(e.target.value); } catch { return toast.error('Valor inválido (use número, true/false ou texto entre aspas).'); }
             if (JSON.stringify(v) === JSON.stringify(r.value)) return;

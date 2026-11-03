@@ -1,6 +1,6 @@
 import { clsx } from 'clsx';
 import {
-  Clapperboard, Coins, Gift, FolderOpen, Gauge, Image as ImageIcon, LayoutDashboard, ListChecks, LogOut, Menu, Mic, Moon, Plug,
+  Clapperboard, Coins, Film, Gift, FolderOpen, Gauge, Image as ImageIcon, LayoutDashboard, ListChecks, LogOut, Menu, Mic, Moon, Plug,
   Scissors, Shield, Sparkles, Sun, UserRound, Users, Wand2, X,
 } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
@@ -13,6 +13,7 @@ const NAV: { to: string; label: string; icon: ReactNode; admin?: boolean }[] = [
   { to: '/', label: 'Início', icon: <LayoutDashboard className="size-4" /> },
   { to: '/transformar', label: 'Transformar vídeo', icon: <Wand2 className="size-4" /> },
   { to: '/video-gratis', label: 'Vídeo grátis', icon: <Gift className="size-4" /> },
+  { to: '/animados', label: 'Modelos animados', icon: <Film className="size-4" /> },
   { to: '/gerar', label: 'Gerar vídeo com IA', icon: <Clapperboard className="size-4" /> },
   { to: '/personagens', label: 'Personagens', icon: <Users className="size-4" /> },
   { to: '/imagens', label: 'Imagens', icon: <ImageIcon className="size-4" /> },

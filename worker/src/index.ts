@@ -15,6 +15,9 @@ import { TextAdapter } from './providers/anthropic.ts';
 import { CloudflareAI } from './providers/cloudflare.ts';
 import { FalAdapter } from './providers/fal.ts';
 import { GeminiAdapter } from './providers/gemini.ts';
+import { GradioSpace } from './providers/gradio.ts';
+import { detectMotion } from './providers/motion.ts';
+import { PollinationsAdapter } from './providers/pollinations.ts';
 import { detectLocal } from './providers/local.ts';
 import { RunwayAdapter } from './providers/runway.ts';
 import { processJob, type RunnerDeps } from './runner.ts';
@@ -40,7 +43,7 @@ async function hasFfmpeg(): Promise<boolean> {
 }
 
 /** Adaptadores recriados apenas quando alguma chave muda. */
-let providers: Pick<RunnerDeps, 'runway' | 'text' | 'gemini' | 'cloudflare' | 'fal'> = {};
+let providers: Pick<RunnerDeps, 'runway' | 'text' | 'gemini' | 'cloudflare' | 'fal' | 'hf' | 'pollinations'> = {};
 let fingerprint = '';
 function rebuildProviders() {
   const fp = secrets.fingerprint();
@@ -52,14 +55,19 @@ function rebuildProviders() {
   const cfAccount = secrets.get('CLOUDFLARE_ACCOUNT_ID');
   const cfToken = secrets.get('CLOUDFLARE_API_TOKEN');
   const falKey = secrets.get('FAL_KEY');
+  const hfToken = secrets.get('HF_TOKEN');
+  const pollinationsKey = secrets.get('POLLINATIONS_KEY');
   providers = {
     runway: runwayKey ? RunwayAdapter.create(runwayKey) : undefined,
     text: anthropicKey ? TextAdapter.create(anthropicKey, config.anthropicModel) : undefined,
     gemini: geminiKey ? GeminiAdapter.create(geminiKey, config.geminiModel, config.geminiFallbacks) : undefined,
     cloudflare: cfAccount && cfToken ? new CloudflareAI(cfAccount, cfToken) : undefined,
     fal: falKey ? FalAdapter.create(falKey) : undefined,
+    // GPU grátis: funciona sem token (cota anônima do IP); com token, cota da conta
+    hf: { open: (space: string) => new GradioSpace(space, hfToken) },
+    pollinations: pollinationsKey ? new PollinationsAdapter(pollinationsKey) : undefined,
   };
-  log('providers.updated', { runway: !!providers.runway, anthropic: !!providers.text, gemini: !!providers.gemini, cloudflare: !!providers.cloudflare, fal: !!providers.fal });
+  log('providers.updated', { runway: !!providers.runway, anthropic: !!providers.text, gemini: !!providers.gemini, cloudflare: !!providers.cloudflare, fal: !!providers.fal, hf_token: !!hfToken, pollinations: !!providers.pollinations });
 }
 
 let stopping = false;
@@ -69,6 +77,7 @@ async function main() {
   await mkdir(config.tmpDir, { recursive: true });
   const ffmpegOk = await hasFfmpeg();
   const local = await detectLocal(config);
+  const motion = ffmpegOk && (await detectMotion(config));
   const capabilities = () => ({
     ffmpeg: ffmpegOk,
     runway: !!providers.runway,
@@ -76,6 +85,9 @@ async function main() {
     gemini: !!providers.gemini,
     cloudflare: !!providers.cloudflare,
     fal: !!providers.fal,
+    hf: !!providers.hf,
+    pollinations: !!providers.pollinations,
+    motion,
     local: ffmpegOk && (local.transcribe || local.tts),
     local_transcribe: local.transcribe,
     local_tts: local.tts,

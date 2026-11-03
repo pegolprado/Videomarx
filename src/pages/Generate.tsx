@@ -47,13 +47,20 @@ export default function Generate() {
   const character = chars.data?.find((c) => c.id === characterId);
   const runwayInt = useIntegration('runway');
   const falInt = useIntegration('fal');
+  const hfInt = useIntegration('hf');
+  const polInt = useIntegration('pollinations');
+  const cfInt = useIntegration('cloudflare');
   const engine = videoEngine(model);
   useEffect(() => {
-    // sem Runway, começa pelo modelo barato da fal.ai
-    if (!runwayInt.ok && falInt.ok && videoEngine(model) === 'runway' && !project.data) setModel('fal-wan2.2');
-  }, [runwayInt.ok, falInt.ok]); // eslint-disable-line react-hooks/exhaustive-deps
+    // sem Runway, começa pelo motor grátis; depois pelos baratos
+    if (runwayInt.ok || videoEngine(model) !== 'runway' || project.data) return;
+    if (hfInt.ok) setModel('hf-wan2.2');
+    else if (falInt.ok) setModel('fal-wan2.2');
+    else if (polInt.ok) setModel('pollinations-wan2.2');
+  }, [runwayInt.ok, falInt.ok, hfInt.ok, polInt.ok]); // eslint-disable-line react-hooks/exhaustive-deps
   // integração do motor do modelo escolhido
-  const runway = engine === 'fal' ? falInt : runwayInt;
+  const runway = { runway: runwayInt, fal: falInt, hf: hfInt, pollinations: polInt }[engine];
+  const ENGINE_FEATURE = { runway: 'Geração de vídeo (Runway)', fal: 'Vídeo com movimento (fal.ai)', hf: 'Vídeo com movimento grátis (GPU do Hugging Face)', pollinations: 'Vídeo com movimento (Pollinations)' };
   const textEngine = useTextEngine();
   const spec = VIDEO_MODELS.find((m) => m.id === model)!;
   const usesImage = useCharImage && !!character?.primary_image_id;
@@ -130,7 +137,7 @@ export default function Generate() {
         subtitle="Descreva cenas em linguagem natural, gere cada uma, revise e monte a sequência final."
         actions={<Button onClick={() => persist()} loading={saving}><Save className="size-4" /> Salvar projeto</Button>}
       />
-      <IntegrationGate provider={engine} feature={engine === 'fal' ? 'Vídeo com movimento (fal.ai)' : 'Geração de vídeo (Runway)'} />
+      <IntegrationGate provider={engine} feature={ENGINE_FEATURE[engine]} />
 
       <Card className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Field label="Nome do projeto">{(i) => <Input id={i} value={name} onChange={(e) => setName(e.target.value)} />}</Field>
@@ -150,6 +157,14 @@ export default function Generate() {
           </div>
         )}
         {!ratio && <div className="sm:col-span-2 lg:col-span-4"><Notice tone="warning">{spec.label} não gera vídeos {aspect}{usesImage ? '' : ' a partir de texto'}. Escolha outra proporção, outro modelo ou use uma imagem inicial.</Notice></div>}
+        {engine === 'hf' && (
+          <div className="sm:col-span-2 lg:col-span-4">
+            <Notice>
+              Motor grátis: roda na GPU gratuita do Hugging Face, com poucos vídeos por dia e fila pública (pode levar alguns minutos).
+              {!usesImage && (cfInt.ok ? ' Sem imagem inicial, a primeira imagem de cada cena é criada grátis na Cloudflare.' : ' Sem imagem inicial é preciso a Cloudflare ativa (imagens grátis): escolha um personagem com imagem principal ou ative a Cloudflare no Admin.')}
+            </Notice>
+          </div>
+        )}
         {spec.needsImage && !usesImage && <div className="sm:col-span-2 lg:col-span-4"><Notice tone="warning">{spec.label} só funciona a partir de uma imagem: escolha um personagem com imagem principal.</Notice></div>}
       </Card>
 
@@ -182,8 +197,8 @@ export default function Generate() {
           index={idx}
           total={scenes.length}
           prompt={s.prompt_override || scenePrompt(s, character, usesImage)}
-          canGenerate={runway.ok && !!ratio && !(spec.needsImage && !usesImage)}
-          blockReason={!runway.ok ? runway.reason : !ratio ? 'Proporção indisponível para este modelo.' : spec.needsImage && !usesImage ? 'Este modelo exige imagem inicial.' : undefined}
+          canGenerate={runway.ok && !!ratio && !(spec.needsImage && !usesImage) && !(engine === 'hf' && !usesImage && !cfInt.ok)}
+          blockReason={!runway.ok ? runway.reason : !ratio ? 'Proporção indisponível para este modelo.' : spec.needsImage && !usesImage ? 'Este modelo exige imagem inicial.' : engine === 'hf' && !usesImage && !cfInt.ok ? 'Sem imagem inicial, o motor grátis precisa da Cloudflare ativa.' : undefined}
           jobParams={{ engine, ...(engine === 'fal' ? { resolution: '480p' } : {}), model, aspect, duration: s.duration, character_id: characterId || undefined, use_character_image: usesImage, scene_index: idx, prompt: s.prompt_override || scenePrompt(s, character, usesImage) }}
           durations={spec.durations as readonly number[]}
           projectId={projectId}

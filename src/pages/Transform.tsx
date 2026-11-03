@@ -3,7 +3,13 @@ import { CheckCircle2, Lock, Scissors } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { formatBytes, formatDuration } from '@shared/format';
-import { availableModes, qualityWarnings, type SourceCheck, type TransformModeId } from '@shared/transform';
+import { availableModes, qualityWarnings, type SourceCheck, type TransformEngine, type TransformModeId } from '@shared/transform';
+
+const ENGINE_LABEL: Record<TransformEngine, string> = {
+  hf: 'GRÁTIS — GPU do Hugging Face (limite diário, mais lento)',
+  fal: 'fal.ai — Wan 2.2 Animate (pago, barato)',
+  runway: 'Runway (pago)',
+};
 import { AssetGrid, UploadBox } from '@/components/Assets';
 import { CharacterSelect } from '@/components/CharacterSelect';
 import { CostConfirm } from '@/components/CostConfirm';
@@ -48,7 +54,7 @@ export default function Transform() {
   const [jobIds, setJobIds] = useState<string[]>([]);
   const [projectId, setProjectId] = useState<string | null>(params.get('projeto'));
   const [seed, setSeed] = useState(() => Math.floor(Math.random() * 1e9));
-  const [enginePref, setEnginePref] = useState<'fal' | 'runway'>('fal');
+  const [enginePref, setEnginePref] = useState<TransformEngine>('hf');
   const [falRes, setFalRes] = useState<'480p' | '580p' | '720p'>('480p');
 
   const videos = useAssets({ kind: 'video', categories: ['original'] });
@@ -82,9 +88,11 @@ export default function Transform() {
   const duration = source?.duration_s ? Number(source.duration_s) : 0;
   const clipLen = Math.max(0, (end ?? duration) - start);
   const sel = modes.find((m) => m.mode.id === mode);
-  const engine: 'fal' | 'runway' = sel?.engines.includes(enginePref) ? enginePref : (sel?.engines[0] ?? 'runway');
-  const isFal = engine === 'fal';
-  const mainKey = isFal ? `fal.animate.${falRes}` : mode === 'full_body' || mode === 'cinematic' ? 'runway.act_two' : 'runway.aleph2';
+  const engine: TransformEngine = sel?.engines.includes(enginePref) ? enginePref : (sel?.engines[0] ?? 'runway');
+  // fal e hf usam o mesmo modelo (Wan 2.2 Animate): sem as opções do Act-Two
+  const isFal = engine !== 'runway';
+  const isHf = engine === 'hf';
+  const mainKey = isHf ? 'hf.animate' : isFal ? `fal.animate.${falRes}` : mode === 'full_body' || mode === 'cinematic' ? 'runway.act_two' : 'runway.aleph2';
   const limits = prices.data?.find((p) => p.key === mainKey);
   const warnings = qualityWarnings(check, mode);
 
@@ -224,14 +232,14 @@ export default function Transform() {
             </button>
           ))}
         </div>
-        {sel?.available && (sel.engines.length > 1 || isFal) && (
+        {sel?.available && (sel.engines.length > 1 || (isFal && !isHf)) && (
           <div className="grid gap-3 sm:grid-cols-2">
             {sel.engines.length > 1 && (
               <Field label="Motor">
-                {(i) => <Select id={i} value={engine} onChange={(e) => setEnginePref(e.target.value as 'fal')} options={sel.engines.map((en) => ({ value: en, label: en === 'fal' ? 'fal.ai — Wan 2.2 Animate (mais barato)' : 'Runway' }))} />}
+                {(i) => <Select id={i} value={engine} onChange={(e) => setEnginePref(e.target.value as TransformEngine)} options={sel.engines.map((en) => ({ value: en, label: ENGINE_LABEL[en] }))} />}
               </Field>
             )}
-            {isFal && (
+            {isFal && !isHf && (
               <Field label="Qualidade" hint="Quanto maior, mais caro e mais demorado.">
                 {(i) => <Select id={i} value={falRes} onChange={(e) => setFalRes(e.target.value as '480p')} options={[{ value: '480p', label: '480p — econômica' }, { value: '580p', label: '580p — intermediária' }, { value: '720p', label: '720p — melhor qualidade' }]} />}
               </Field>
@@ -240,7 +248,14 @@ export default function Transform() {
         )}
         {sel && (
           <Notice title="Como funciona">
-            {isFal && sel.mode.howFal ? sel.mode.howFal : sel.mode.how} <span className="text-muted">{isFal ? 'Trecho de 1 a 15 s. O áudio original do vídeo é mantido.' : sel.mode.limits}</span>
+            {isHf && sel.mode.howHf ? sel.mode.howHf : isFal && sel.mode.howFal ? sel.mode.howFal : sel.mode.how}{' '}
+            <span className="text-muted">
+              {isHf
+                ? 'Trecho de 2 a 8 s. O áudio original é mantido. Se a cota do dia acabar, a tarefa avisa e não cobra nada.'
+                : isFal
+                  ? 'Trecho de 1 a 15 s. O áudio original do vídeo é mantido.'
+                  : sel.mode.limits}
+            </span>
           </Notice>
         )}
         {(mode === 'full_body' || mode === 'cinematic') && !isFal && (

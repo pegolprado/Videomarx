@@ -26,6 +26,8 @@ export interface Config {
   piperBin: string;
   voicesDir: string;
   localThreads: number;
+  /** modelos animados: navegador usado pelo HyperFrames (Chromium do sistema) */
+  motionBrowser: string;
 }
 
 export function loadConfig(): Config {
@@ -47,5 +49,6 @@ export function loadConfig(): Config {
     piperBin: process.env.PIPER_BIN || '/opt/piper/piper',
     voicesDir: process.env.PIPER_VOICES_DIR || '/voices',
     localThreads: Math.max(1, Number(process.env.LOCAL_AI_THREADS || 2)),
+    motionBrowser: process.env.HYPERFRAMES_BROWSER_PATH || '/usr/bin/chromium',
   };
 }

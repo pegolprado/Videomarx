@@ -13,10 +13,14 @@ const FEATURES: { feature: string; provider: string | null; note?: string }[] = 
   { feature: 'Vídeo por texto e por imagem', provider: 'runway' },
   ...TRANSFORM_MODES.flatMap((m) =>
     m.providers.length
-      ? m.providers.map((p) => ({ feature: `Transformar vídeo — Modo ${m.letter}: ${m.title} (${p === 'fal' ? 'fal.ai' : 'Runway'})`, provider: p as string | null, note: undefined as string | undefined }))
+      ? m.providers.map((p) => ({ feature: `Transformar vídeo — Modo ${m.letter}: ${m.title} (${p === 'fal' ? 'fal.ai' : p === 'hf' ? 'GPU grátis do Hugging Face' : 'Runway'})`, provider: p as string | null, note: undefined as string | undefined }))
       : [{ feature: `Transformar vídeo — Modo ${m.letter}: ${m.title}`, provider: null, note: m.how }],
   ),
+  { feature: 'Vídeo com movimento — Wan 2.2 GRÁTIS (GPU do Hugging Face, limite diário)', provider: 'hf' },
   { feature: 'Vídeo com movimento a partir de imagem — Wan 2.2 (fal.ai)', provider: 'fal' },
+  { feature: 'Vídeo com movimento por texto ou imagem — Wan 2.2 (Pollinations)', provider: 'pollinations' },
+  { feature: 'Personagem falando GRÁTIS — experimental (GPU do Hugging Face)', provider: 'hf' },
+  { feature: 'Modelos animados: textos e imagens em vídeo (HyperFrames, grátis)', provider: 'motion' },
   { feature: 'Personagem falando (imagem + voz, boca sincronizada) — VEED Fabric (fal.ai)', provider: 'fal' },
   { feature: 'Texto para fala — motor próprio (Piper, grátis)', provider: 'local' },
   { feature: 'Texto para fala — Runway (vozes ElevenLabs)', provider: 'runway' },

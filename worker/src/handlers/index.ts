@@ -4,6 +4,7 @@ import { autocutHandler, concatHandler, exportHandler, probeHandler, slideshowHa
 import { imageHandler, talkHandler, textHandler, transformHandler, ttsHandler, videoHandler } from './ai.ts';
 import { localTtsHandler, transcribeHandler } from './local.ts';
 import { autoVideoHandler } from './pipeline.ts';
+import { motionHandler } from './motion.ts';
 
 export const HANDLERS: Record<JobKind, Handler> = {
   'media.probe': probeHandler,
@@ -21,6 +22,7 @@ export const HANDLERS: Record<JobKind, Handler> = {
   'local.transcribe': transcribeHandler,
   'local.tts': localTtsHandler,
   'pipeline.auto_video': autoVideoHandler,
+  'media.motion': motionHandler,
 };
 
 /** Só busca na fila o que este worker consegue executar. */
@@ -31,6 +33,11 @@ export interface WorkerCaps {
   gemini?: boolean;
   cloudflare?: boolean;
   fal?: boolean;
+  /** GPU grátis do Hugging Face */
+  hf?: boolean;
+  pollinations?: boolean;
+  /** modelos animados (HyperFrames + Chromium) */
+  motion?: boolean;
   local_transcribe?: boolean;
   local_tts?: boolean;
 }
@@ -40,8 +47,10 @@ export function supportedKinds(caps: WorkerCaps): JobKind[] {
   if (caps.ffmpeg) kinds.push('media.probe', 'media.trim', 'media.export', 'media.concat', 'media.autocut', 'media.slideshow');
   // tarefas de IA visual também usam FFmpeg (preparar trechos, miniaturas)
   if (caps.runway && caps.ffmpeg) kinds.push('ai.tts');
-  if ((caps.runway || caps.fal) && caps.ffmpeg) kinds.push('ai.video', 'ai.transform');
-  if (caps.fal && caps.ffmpeg) kinds.push('ai.talk');
+  if ((caps.runway || caps.fal || caps.hf) && caps.ffmpeg) kinds.push('ai.transform');
+  if ((caps.runway || caps.fal || caps.hf || caps.pollinations) && caps.ffmpeg) kinds.push('ai.video');
+  if ((caps.fal || caps.hf) && caps.ffmpeg) kinds.push('ai.talk');
+  if (caps.motion && caps.ffmpeg) kinds.push('media.motion');
   if ((caps.runway || caps.cloudflare) && caps.ffmpeg) kinds.push('ai.image');
   if (caps.anthropic || caps.gemini) kinds.push('ai.text');
   // motor próprio: dependem também do FFmpeg (conversão de áudio)
