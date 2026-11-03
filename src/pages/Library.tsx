@@ -113,9 +113,14 @@ export default function Library() {
               <button onClick={() => setOpen(a)} className="text-left"><AssetThumb asset={a} /></button>
               <div className="flex items-center justify-between gap-1 px-1">
                 <span className="truncate text-sm">{a.name}</span>
-                <button aria-label="Favoritar" onClick={() => act(async () => { const { error } = await supabase.from('assets').update({ is_favorite: !a.is_favorite }).eq('id', a.id); if (error) throw error; })}>
-                  <Star className={`size-4 ${a.is_favorite ? 'fill-warning text-warning' : 'text-muted'}`} />
-                </button>
+                <span className="flex shrink-0 items-center gap-1.5">
+                  <button aria-label="Favoritar" title="Favoritar" onClick={() => act(async () => { const { error } = await supabase.from('assets').update({ is_favorite: !a.is_favorite }).eq('id', a.id); if (error) throw error; })}>
+                    <Star className={`size-4 ${a.is_favorite ? 'fill-warning text-warning' : 'text-muted'}`} />
+                  </button>
+                  <button aria-label="Excluir" title="Excluir" className="text-muted hover:text-danger" onClick={() => confirm(`Excluir "${a.name}" definitivamente?`) && act(() => deleteAsset(a), 'Arquivo excluído.')}>
+                    <Trash2 className="size-4" />
+                  </button>
+                </span>
               </div>
               <p className="px-1 text-xs text-muted">{new Date(a.created_at).toLocaleDateString('pt-BR')} · {a.kind === 'image' ? `${a.width ?? '?'}×${a.height ?? '?'}` : formatDuration(a.duration_s)} · {formatBytes(a.size_bytes)}</p>
             </div>

@@ -90,6 +90,8 @@ export function CostConfirm({
           <Coins className="size-4 text-warning" />
           <span className="text-muted">Custo estimado:</span>
           <span className="font-semibold">{loading ? '…' : est ? formatCredits(est.credits) : '—'}</span>
+          {est && est.credits > 0 && <span className="text-xs text-muted">≈ US$ {(est.credits * Number(est.credit_value_usd ?? 0.01)).toFixed(2)}</span>}
+          {est && est.credits === 0 && !est.errors.length && <span className="rounded-full bg-success/15 px-2 py-0.5 text-xs text-success">grátis</span>}
         </div>
         <span className="text-xs text-muted">Saldo: {formatCredits(available)}</span>
       </div>

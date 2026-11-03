@@ -12,6 +12,7 @@ export const JOB_KINDS = [
   'ai.transform',
   'ai.tts',
   'ai.text',
+  'ai.talk',
   'local.transcribe',
   'local.tts',
   'pipeline.auto_video',
@@ -44,12 +45,13 @@ export const KIND_LABEL: Record<JobKind, string> = {
   'ai.transform': 'Transformação de vídeo',
   'ai.tts': 'Geração de voz',
   'ai.text': 'Roteiro e textos',
+  'ai.talk': 'Personagem falando',
   'local.transcribe': 'Legendas automáticas',
   'local.tts': 'Voz (motor próprio)',
   'pipeline.auto_video': 'Vídeo automático',
 };
 
-export const KIND_PROVIDER: Record<JobKind, 'ffmpeg' | 'runway' | 'anthropic' | 'local' | 'gemini' | 'cloudflare'> = {
+export const KIND_PROVIDER: Record<JobKind, 'ffmpeg' | 'runway' | 'anthropic' | 'local' | 'gemini' | 'cloudflare' | 'fal'> = {
   'media.probe': 'ffmpeg',
   'media.trim': 'ffmpeg',
   'media.export': 'ffmpeg',
@@ -61,6 +63,7 @@ export const KIND_PROVIDER: Record<JobKind, 'ffmpeg' | 'runway' | 'anthropic' | 
   'ai.transform': 'runway',
   'ai.tts': 'runway',
   'ai.text': 'anthropic',
+  'ai.talk': 'fal',
   'local.transcribe': 'local',
   'local.tts': 'local',
   'pipeline.auto_video': 'ffmpeg',
@@ -159,8 +162,13 @@ export interface ImageParams {
   seed?: number;
 }
 
+export type FalResolution = '480p' | '720p';
+
 export interface VideoParams {
-  model: 'gen4.5' | 'gen4_turbo' | 'veo3.1' | 'veo3.1_fast';
+  /** fal = Wan 2.2 a partir de imagem (barato); padrão = Runway */
+  engine?: 'runway' | 'fal';
+  resolution?: FalResolution;
+  model: 'gen4.5' | 'gen4_turbo' | 'veo3.1' | 'veo3.1_fast' | 'fal-wan2.2';
   prompt: string;
   duration: number;
   aspect: Aspect;
@@ -174,6 +182,9 @@ export interface VideoParams {
 }
 
 export interface TransformParams extends TrimParams {
+  /** fal = Wan 2.2 Animate (troca no vídeo original / transferência de movimento); padrão = Runway */
+  engine?: 'runway' | 'fal';
+  resolution?: '480p' | '580p' | '720p';
   mode: 'face_swap' | 'head' | 'full_body' | 'appearance' | 'stylized' | 'cinematic';
   character_id: string;
   rights_confirmed: true;
@@ -189,6 +200,11 @@ export interface TransformParams extends TrimParams {
   new_outfit?: string;
   intensity?: 'subtle' | 'medium' | 'strong';
   seed?: number;
+}
+
+/** Personagem falando: imagem + áudio → vídeo com boca sincronizada (VEED Fabric via fal). */
+export interface TalkParams {
+  resolution?: FalResolution;
 }
 
 export interface TtsParams {

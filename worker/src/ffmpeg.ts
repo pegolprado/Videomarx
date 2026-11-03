@@ -97,9 +97,9 @@ export async function frameAt(input: string, output: string, seconds: number, wi
  * Prepara um trecho para envio ao provedor: corta, limita a 720p e
  * converte para H.264/AAC (arquivo pequeno e compatível).
  */
-export async function prepareClip(input: string, output: string, start: number, duration: number, hasAudio: boolean): Promise<void> {
+export async function prepareClip(input: string, output: string, start: number, duration: number, hasAudio: boolean, fps?: number): Promise<void> {
   const args = ['-y', '-ss', start.toFixed(3), '-t', duration.toFixed(3), '-i', input,
-    '-vf', "scale='if(gt(iw,ih),min(1280,iw),-2)':'if(gt(iw,ih),-2,min(1280,ih))',format=yuv420p",
+    '-vf', `scale='if(gt(iw,ih),min(1280,iw),-2)':'if(gt(iw,ih),-2,min(1280,ih))'${fps ? `,fps=${fps}` : ''},format=yuv420p`,
     '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23', '-movflags', '+faststart'];
   if (hasAudio) args.push('-c:a', 'aac', '-b:a', '128k');
   else args.push('-an');

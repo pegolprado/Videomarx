@@ -8,7 +8,7 @@ import { IMAGE_RATIOS, VIDEO_MODELS, VIDEO_RATIOS, ratioFor } from '../../../sha
 import { estimateCues, toSrt } from '../../../shared/srt.ts';
 import { isVoicePreset } from '../../../shared/voices.ts';
 import type { Aspect, ImageParams, TextParams, TransformParams, TtsParams, VideoParams } from '../../../shared/jobs.ts';
-import { frameAt, prepareClip } from '../ffmpeg.ts';
+import { ffmpeg, frameAt, prepareClip } from '../ffmpeg.ts';
 import { JobError } from '../errors.ts';
 import { downloadUrl, extFromUrl } from '../storage.ts';
 import { spentCredits } from '../providers/runway.ts';
@@ -140,8 +140,9 @@ async function cloudflareImage(ctx: JobContext, p: ImageParams) {
 
 // ---------------------------------------------------------------------------
 export const videoHandler: Handler = async (ctx) => {
-  const runway = runwayOf(ctx);
   const p = ctx.job.params as unknown as VideoParams;
+  if (p.engine === 'fal' || p.model === 'fal-wan2.2') return falVideo(ctx, p);
+  const runway = runwayOf(ctx);
   const aspect = assertAspect(p.aspect);
   const spec = VIDEO_MODELS.find((m) => m.id === p.model);
   if (!spec) throw new JobError('invalid_params', 'Modelo de vídeo indisponível.');
@@ -192,8 +193,9 @@ const OUTFIT_TEXT = {
 };
 
 export const transformHandler: Handler = async (ctx) => {
-  const runway = runwayOf(ctx);
   const p = ctx.job.params as unknown as TransformParams;
+  if (p.engine === 'fal') return falTransform(ctx, p);
+  const runway = runwayOf(ctx);
   if (!['full_body', 'appearance', 'stylized', 'cinematic'].includes(p.mode)) {
     throw new JobError('unsupported_mode', 'Este modo ainda não tem integração capaz de executá-lo.');
   }
@@ -326,6 +328,131 @@ export const transformHandler: Handler = async (ctx) => {
     metadata: { synthetic: true, provider: 'runway', mode: p.mode, source_asset_id: src.id, trim: [start, end] },
   });
   return { outputs: [asset.id], ...costOf(ctx) };
+};
+
+// ---------------------------------------------------------------------------
+// fal.ai
+// ---------------------------------------------------------------------------
+function falOf(ctx: JobContext) {
+  if (!ctx.fal) throw new JobError('not_configured', 'A integração com a fal.ai não está configurada neste servidor.');
+  return ctx.fal;
+}
+
+/** A fal não informa o custo na resposta: registra o valor da tabela (o que foi reservado). */
+function falCost(ctx: JobContext) {
+  const usd = Math.round(((ctx.job.estimated_credits * ctx.settings.creditValueUsd) / (ctx.settings.markup || 1)) * 10_000) / 10_000;
+  return { actualUsd: usd, providerCost: { fal_estimated_usd: usd } };
+}
+
+function falRes(r: unknown): '480p' | '580p' | '720p' {
+  return r === '720p' || r === '580p' ? r : '480p';
+}
+
+/** Vídeo com movimento a partir de imagem (Wan 2.2 Turbo). */
+async function falVideo(ctx: JobContext, p: VideoParams) {
+  const fal = falOf(ctx);
+  const aspect = assertAspect(p.aspect);
+  const promptText = clampPrompt(p.prompt ?? '');
+  if (!promptText) throw new JobError('invalid_params', 'Descreva o movimento da cena.');
+  let imageUrl: string | null = null;
+  if (p.image_asset_id) {
+    const img = await ctx.loadAsset(p.image_asset_id);
+    if (img.user_id !== ctx.job.user_id || img.kind !== 'image') throw new JobError('invalid_params', 'Imagem inicial inválida.');
+    imageUrl = await ctx.storage.signedUrl(img.path, 4 * 3600);
+  } else if (p.character_id) {
+    imageUrl = (await characterRefs(ctx, p.character_id, 1)).primaryUrl;
+  }
+  if (!imageUrl) throw new JobError('invalid_params', 'O Wan 2.2 precisa de uma imagem inicial: escolha um personagem com imagem principal ou uma imagem.');
+  const url = await fal.run(ctx, 'video', 'fal-ai/wan/v2.2-a14b/image-to-video/turbo', {
+    image_url: imageUrl,
+    prompt: promptText,
+    resolution: falRes(p.resolution) === '720p' ? '720p' : '480p',
+    aspect_ratio: aspect,
+    ...(p.seed ? { seed: p.seed } : {}),
+  }, { label: 'Vídeo (Wan 2.2)', range: [0.05, 0.9] });
+  const local = await storeFromUrl(ctx, url, 'mp4');
+  const asset = await saveOutput(ctx, local, {
+    name: p.scene_index != null ? `Cena ${p.scene_index + 1}` : 'Vídeo gerado',
+    category: 'generated',
+    ext: 'mp4',
+    characterId: p.character_id ?? null,
+    metadata: { synthetic: true, provider: 'fal', model: 'wan-2.2-a14b-i2v-turbo', prompt: promptText, scene_index: p.scene_index ?? null },
+  });
+  return { outputs: [asset.id], ...falCost(ctx) };
+}
+
+/** Troca de personagem (Wan 2.2 Animate): replace = mesmo cenário; move = cenário do personagem. */
+async function falTransform(ctx: JobContext, p: TransformParams) {
+  const fal = falOf(ctx);
+  if (p.mode !== 'full_body' && p.mode !== 'cinematic') throw new JobError('unsupported_mode', 'Este modo não está disponível na fal.ai.');
+  const src = ctx.inputs[0];
+  const { character, primaryUrl } = await characterRefs(ctx, p.character_id, 1);
+  if (!primaryUrl) throw new JobError('invalid_params', 'Escolha uma imagem principal para o personagem antes de transformar vídeos.');
+  const start = Math.max(0, p.trim_start ?? 0);
+  const end = Math.min(Number(src.duration_s), p.trim_end ?? Number(src.duration_s));
+  const state = ctx.job.state as Record<string, string | undefined>;
+  // trecho a 16 quadros/s: a fal cobra por "segundo" de 16 quadros, então não paga a mais por vídeos de 30/60 fps
+  let clipPath = state.clip_path;
+  if (!clipPath) {
+    const local = join(ctx.workDir, 'source.' + (src.path.split('.').pop() || 'mp4'));
+    await ctx.storage.download(src.path, local);
+    const clip = join(ctx.workDir, 'clip.mp4');
+    await prepareClip(local, clip, start, end - start, !!src.has_audio, 16);
+    clipPath = `${ctx.job.user_id}/temp/${ctx.job.id}-clip.mp4`;
+    await ctx.storage.upload(clip, clipPath, 'video/mp4');
+    await ctx.createAsset({ kind: 'video', category: 'temp', name: 'Trecho preparado', path: clipPath, mime: 'video/mp4', probe_status: 'ok', duration_s: end - start, metadata: { source_asset_id: src.id } });
+    await ctx.progress(0.08, { clip_path: clipPath }, undefined, 'Trecho preparado');
+  }
+  const clipUrl = await ctx.storage.signedUrl(clipPath, 4 * 3600);
+  const endpoint = p.mode === 'full_body' ? 'fal-ai/wan/v2.2-14b/animate/replace' : 'fal-ai/wan/v2.2-14b/animate/move';
+  const url = await fal.run(ctx, 'animate', endpoint, {
+    video_url: clipUrl,
+    image_url: primaryUrl,
+    resolution: falRes(p.resolution),
+    ...(p.seed ? { seed: p.seed } : {}),
+  }, { label: p.mode === 'full_body' ? 'Troca de personagem' : 'Transferência de movimento', range: [0.1, 0.9] });
+  const local = await storeFromUrl(ctx, url, 'mp4');
+  // a saída da Wan vem sem som: devolve o áudio original do trecho
+  let finalLocal = local;
+  if (src.has_audio) {
+    const original = join(ctx.workDir, 'original-audio.' + (src.path.split('.').pop() || 'mp4'));
+    await ctx.storage.download(src.path, original);
+    finalLocal = join(ctx.workDir, 'com-audio.mp4');
+    await ffmpeg(['-y', '-i', local, '-ss', start.toFixed(3), '-t', (end - start).toFixed(3), '-i', original, '-map', '0:v:0', '-map', '1:a:0?', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '160k', '-shortest', '-movflags', '+faststart', finalLocal]);
+  }
+  const asset = await saveOutput(ctx, finalLocal, {
+    name: `${src.name} → ${character.name}`,
+    category: 'transformed',
+    ext: 'mp4',
+    characterId: character.id,
+    rightsFrom: src,
+    metadata: { synthetic: true, provider: 'fal', model: endpoint, mode: p.mode, source_asset_id: src.id, trim: [start, end] },
+  });
+  return { outputs: [asset.id], ...falCost(ctx) };
+}
+
+/** Personagem falando: imagem + áudio → vídeo com boca sincronizada (VEED Fabric 1.0). */
+export const talkHandler: Handler = async (ctx) => {
+  const fal = falOf(ctx);
+  const p = ctx.job.params as { resolution?: string };
+  const image = ctx.inputs.find((a) => a.kind === 'image');
+  const audio = ctx.inputs.find((a) => a.kind === 'audio');
+  if (!image || !audio) throw new JobError('invalid_params', 'Escolha uma imagem e um áudio.');
+  if (Number(audio.duration_s) > 30) throw new JobError('invalid_params', 'O áudio pode ter no máximo 30 segundos.');
+  const url = await fal.run(ctx, 'talk', 'veed/fabric-1.0', {
+    image_url: await ctx.storage.signedUrl(image.path, 4 * 3600),
+    audio_url: await ctx.storage.signedUrl(audio.path, 4 * 3600),
+    resolution: p.resolution === '720p' ? '720p' : '480p',
+  }, { label: 'Personagem falando', range: [0.05, 0.9] });
+  const local = await storeFromUrl(ctx, url, 'mp4');
+  const asset = await saveOutput(ctx, local, {
+    name: `Falando — ${image.name}`.slice(0, 120),
+    category: 'generated',
+    ext: 'mp4',
+    characterId: image.character_id,
+    metadata: { synthetic: true, provider: 'fal', model: 'veed/fabric-1.0', source_asset_ids: [image.id, audio.id] },
+  });
+  return { outputs: [asset.id], ...falCost(ctx) };
 };
 
 // ---------------------------------------------------------------------------

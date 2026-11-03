@@ -6,7 +6,7 @@ import { CostConfirm } from '@/components/CostConfirm';
 import { IntegrationGate, useIntegration } from '@/components/IntegrationGate';
 import { JobCard } from '@/components/JobCard';
 import { Badge, Card, Checkbox, Field, Notice, PageHeader, Select, Textarea } from '@/components/ui';
-import { useCapabilities, useCharacters, useJobs } from '@/lib/hooks';
+import { useAssets, useCapabilities, useCharacters, useJobs } from '@/lib/hooks';
 import { UploadBox } from '@/components/Assets';
 
 export default function Voice() {
@@ -104,9 +104,44 @@ export default function Voice() {
         </div>
         <p className="text-xs text-muted">Use apenas músicas e efeitos sonoros licenciados ou autorais. Ajuste de volume, fade e sincronização são feitos no Editor.</p>
       </Card>
-      <Notice title="Sincronização labial: integração pendente">
-        Nenhum serviço de lip sync está conectado. A narração gerada pode ser combinada ao vídeo no Editor, sem sincronizar os lábios.
-      </Notice>
+      <TalkCard />
     </div>
+  );
+}
+
+/** Personagem falando: uma imagem + um áudio → vídeo com a boca sincronizada (VEED Fabric via fal.ai). */
+function TalkCard() {
+  const fal = useIntegration('fal');
+  const images = useAssets({ kind: 'image', limit: 60 });
+  const audios = useAssets({ kind: 'audio', limit: 60 });
+  const [imageId, setImageId] = useState('');
+  const [audioId, setAudioId] = useState('');
+  const [resolution, setResolution] = useState<'480p' | '720p'>('480p');
+  const [jobIds, setJobIds] = useState<string[]>([]);
+  const jobs = useJobs({ ids: jobIds });
+  const okImages = (images.data ?? []).filter((a) => a.probe_status === 'ok');
+  const okAudios = (audios.data ?? []).filter((a) => a.probe_status === 'ok');
+  const audio = okAudios.find((a) => a.id === audioId);
+  return (
+    <Card className="flex flex-col gap-3">
+      <p className="font-display text-lg font-semibold">Personagem falando (boca sincronizada)</p>
+      <p className="text-sm text-muted">Escolha a imagem do personagem (pode ser um animal ou desenho) e um áudio — por exemplo, uma voz gerada acima. O personagem fala o áudio, mexendo a boca e a cabeça.</p>
+      <IntegrationGate provider="fal" feature="Personagem falando (fal.ai)" />
+      <div className="grid gap-3 md:grid-cols-3">
+        <Field label="Imagem">{(i) => <Select id={i} value={imageId} onChange={(e) => setImageId(e.target.value)} options={[{ value: '', label: 'Escolha uma imagem…' }, ...okImages.map((a) => ({ value: a.id, label: a.name }))]} />}</Field>
+        <Field label="Áudio (até 30 s)">{(i) => <Select id={i} value={audioId} onChange={(e) => setAudioId(e.target.value)} options={[{ value: '', label: 'Escolha um áudio…' }, ...okAudios.map((a) => ({ value: a.id, label: `${a.name} (${Math.round(Number(a.duration_s ?? 0))} s)` }))]} />}</Field>
+        <Field label="Qualidade">{(i) => <Select id={i} value={resolution} onChange={(e) => setResolution(e.target.value as '480p')} options={[{ value: '480p', label: '480p — econômica' }, { value: '720p', label: '720p — melhor' }]} />}</Field>
+      </div>
+      {audio && Number(audio.duration_s) > 30 && <Notice tone="warning">Esse áudio tem mais de 30 segundos. Corte-o no Editor ou gere uma fala menor.</Notice>}
+      <CostConfirm
+        kind="ai.talk"
+        params={{ resolution }}
+        inputs={imageId && audioId ? [imageId, audioId] : []}
+        disabled={!fal.ok ? fal.reason : !imageId || !audioId ? 'Escolha a imagem e o áudio.' : false}
+        label="Fazer o personagem falar"
+        onCreated={(j) => setJobIds((ids) => [j.id, ...ids])}
+      />
+      {jobs.data?.map((j) => <JobCard key={j.id} job={j} />)}
+    </Card>
   );
 }

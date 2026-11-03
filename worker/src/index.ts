@@ -13,6 +13,7 @@ import { supportedKinds } from './handlers/index.ts';
 import { runMaintenance } from './maintenance.ts';
 import { TextAdapter } from './providers/anthropic.ts';
 import { CloudflareAI } from './providers/cloudflare.ts';
+import { FalAdapter } from './providers/fal.ts';
 import { GeminiAdapter } from './providers/gemini.ts';
 import { detectLocal } from './providers/local.ts';
 import { RunwayAdapter } from './providers/runway.ts';
@@ -39,7 +40,7 @@ async function hasFfmpeg(): Promise<boolean> {
 }
 
 /** Adaptadores recriados apenas quando alguma chave muda. */
-let providers: Pick<RunnerDeps, 'runway' | 'text' | 'gemini' | 'cloudflare'> = {};
+let providers: Pick<RunnerDeps, 'runway' | 'text' | 'gemini' | 'cloudflare' | 'fal'> = {};
 let fingerprint = '';
 function rebuildProviders() {
   const fp = secrets.fingerprint();
@@ -50,13 +51,15 @@ function rebuildProviders() {
   const geminiKey = secrets.get('GEMINI_API_KEY');
   const cfAccount = secrets.get('CLOUDFLARE_ACCOUNT_ID');
   const cfToken = secrets.get('CLOUDFLARE_API_TOKEN');
+  const falKey = secrets.get('FAL_KEY');
   providers = {
     runway: runwayKey ? RunwayAdapter.create(runwayKey) : undefined,
     text: anthropicKey ? TextAdapter.create(anthropicKey, config.anthropicModel) : undefined,
     gemini: geminiKey ? GeminiAdapter.create(geminiKey, config.geminiModel, config.geminiFallbacks) : undefined,
     cloudflare: cfAccount && cfToken ? new CloudflareAI(cfAccount, cfToken) : undefined,
+    fal: falKey ? FalAdapter.create(falKey) : undefined,
   };
-  log('providers.updated', { runway: !!providers.runway, anthropic: !!providers.text, gemini: !!providers.gemini, cloudflare: !!providers.cloudflare });
+  log('providers.updated', { runway: !!providers.runway, anthropic: !!providers.text, gemini: !!providers.gemini, cloudflare: !!providers.cloudflare, fal: !!providers.fal });
 }
 
 let stopping = false;
@@ -72,6 +75,7 @@ async function main() {
     anthropic: !!providers.text,
     gemini: !!providers.gemini,
     cloudflare: !!providers.cloudflare,
+    fal: !!providers.fal,
     local: ffmpegOk && (local.transcribe || local.tts),
     local_transcribe: local.transcribe,
     local_tts: local.tts,

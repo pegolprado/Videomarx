@@ -25,8 +25,12 @@ Nunca executado contra os provedores neste ambiente (sem chaves e sem acesso de 
 - **Vídeo automático em 1 clique** (página Vídeo grátis): testado de ponta a ponta com FFmpeg real e provedores simulados.
 - Corrigido: miniaturas de imagens paradas (envios e imagens geradas) não eram criadas.
 
+## fal.ai (pago por uso, barato) — aguardando a chave para o primeiro teste real
+- **Troca da pessoa do vídeo pelo personagem no mesmo cenário** (Modo C, Wan 2.2 Animate Replace), **transferência de movimento** (Modo F, Animate Move), **vídeo com movimento a partir de imagem** (Wan 2.2 Turbo) e **personagem falando** com boca sincronizada (VEED Fabric 1.0). Parâmetros conferidos nos tipos do SDK oficial @fal-ai/client; testado com a fila simulada e FFmpeg real.
+- Preços padrão (conferir em fal.ai): Animate US$ 0,04/s (480p) a 0,08/s (720p); Wan 2.2 Turbo ~US$ 0,05 (480p) / 0,10 (720p) por vídeo de 5 s; Fabric US$ 0,08/s (480p) / 0,15/s (720p). O trecho é enviado a 16 quadros/s para não pagar a mais.
+
 ## Pendente (aparece bloqueado na interface)
-- Modos A (troca de rosto) e B (cabeça/rosto): falta provedor com API e licença comercial.
+- Modos A (só o rosto) e B (só a cabeça): falta provedor dedicado; a troca da pessoa inteira já é feita pelo Modo C com a fal.ai.
 - Detecção/segmentação automática de pessoas (hoje o usuário confirma pela prévia).
 - Sincronização labial.
 - Regenerar só um trecho problemático de um vídeo transformado (hoje: ajustar o trecho e gerar outra variação).

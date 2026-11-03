@@ -249,6 +249,7 @@ const SECRET_FIELDS: Record<string, { name: string; label: string; help: string 
   ],
   runway: [{ name: 'RUNWAYML_API_SECRET', label: 'API secret da Runway (pago)', help: 'dev.runwayml.com' }],
   anthropic: [{ name: 'ANTHROPIC_API_KEY', label: 'API key da Anthropic (pago)', help: 'console.anthropic.com' }],
+  fal: [{ name: 'FAL_KEY', label: 'API key da fal.ai (pago por uso)', help: 'fal.ai → Dashboard → API Keys → Add key (e adicione saldo em Billing)' }],
 };
 
 function IntegrationsAdmin() {

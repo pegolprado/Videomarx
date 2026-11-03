@@ -17,6 +17,14 @@ const caps = (over: Partial<Capabilities['integrations'][string]> = {}, online =
 });
 
 describe('modos de transformação', () => {
+  it('com a fal.ai, os modos C e F ficam disponíveis por ela', () => {
+    const c = caps();
+    c.integrations.runway.configured = false;
+    c.integrations.fal = { label: 'fal', description: '', enabled: true, configured: true };
+    const m = availableModes(c);
+    expect(m.find((x) => x.mode.id === 'full_body')).toMatchObject({ available: true, engines: ['fal'] });
+    expect(m.find((x) => x.mode.id === 'stylized')?.available).toBe(false);
+  });
   it('A e B ficam indisponíveis: nenhuma integração os executa', () => {
     const m = availableModes(caps());
     expect(m.find((x) => x.mode.id === 'face_swap')?.available).toBe(false);

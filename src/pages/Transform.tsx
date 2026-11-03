@@ -48,6 +48,8 @@ export default function Transform() {
   const [jobIds, setJobIds] = useState<string[]>([]);
   const [projectId, setProjectId] = useState<string | null>(params.get('projeto'));
   const [seed, setSeed] = useState(() => Math.floor(Math.random() * 1e9));
+  const [enginePref, setEnginePref] = useState<'fal' | 'runway'>('fal');
+  const [falRes, setFalRes] = useState<'480p' | '580p' | '720p'>('480p');
 
   const videos = useAssets({ kind: 'video', categories: ['original'] });
   const source = videos.data?.find((v) => v.id === sourceId) ?? null;
@@ -80,12 +82,16 @@ export default function Transform() {
   const duration = source?.duration_s ? Number(source.duration_s) : 0;
   const clipLen = Math.max(0, (end ?? duration) - start);
   const sel = modes.find((m) => m.mode.id === mode);
-  const mainKey = mode === 'full_body' || mode === 'cinematic' ? 'runway.act_two' : 'runway.aleph2';
+  const engine: 'fal' | 'runway' = sel?.engines.includes(enginePref) ? enginePref : (sel?.engines[0] ?? 'runway');
+  const isFal = engine === 'fal';
+  const mainKey = isFal ? `fal.animate.${falRes}` : mode === 'full_body' || mode === 'cinematic' ? 'runway.act_two' : 'runway.aleph2';
   const limits = prices.data?.find((p) => p.key === mainKey);
   const warnings = qualityWarnings(check, mode);
 
   const jobParams = useMemo(
     () => ({
+      engine,
+      ...(engine === 'fal' ? { resolution: falRes } : {}),
       mode,
       character_id: characterId,
       rights_confirmed: rights,
@@ -96,7 +102,7 @@ export default function Transform() {
       ...(mode === 'cinematic' || mode === 'stylized' || mode === 'appearance' ? { scene_prompt: opts.scene_prompt } : {}),
       ...(mode === 'appearance' || mode === 'stylized' ? { outfit: opts.outfit, new_outfit: opts.new_outfit, intensity: opts.intensity, use_character_keyframe: opts.use_character_keyframe } : {}),
     }),
-    [mode, characterId, rights, start, end, duration, opts, seed],
+    [engine, falRes, mode, characterId, rights, start, end, duration, opts, seed],
   );
 
   const blocker = !source
@@ -111,7 +117,7 @@ export default function Transform() {
             ? 'O personagem precisa de uma imagem principal.'
             : !sel?.available
               ? `Modo indisponível: ${sel?.reason}`
-              : mode === 'cinematic' && !opts.scene_prompt.trim()
+              : mode === 'cinematic' && !isFal && !opts.scene_prompt.trim()
                 ? 'Descreva o cenário da nova cena.'
                 : !rights
                   ? 'Confirme os direitos de uso do vídeo.'
@@ -218,12 +224,26 @@ export default function Transform() {
             </button>
           ))}
         </div>
+        {sel?.available && (sel.engines.length > 1 || isFal) && (
+          <div className="grid gap-3 sm:grid-cols-2">
+            {sel.engines.length > 1 && (
+              <Field label="Motor">
+                {(i) => <Select id={i} value={engine} onChange={(e) => setEnginePref(e.target.value as 'fal')} options={sel.engines.map((en) => ({ value: en, label: en === 'fal' ? 'fal.ai — Wan 2.2 Animate (mais barato)' : 'Runway' }))} />}
+              </Field>
+            )}
+            {isFal && (
+              <Field label="Qualidade" hint="Quanto maior, mais caro e mais demorado.">
+                {(i) => <Select id={i} value={falRes} onChange={(e) => setFalRes(e.target.value as '480p')} options={[{ value: '480p', label: '480p — econômica' }, { value: '580p', label: '580p — intermediária' }, { value: '720p', label: '720p — melhor qualidade' }]} />}
+              </Field>
+            )}
+          </div>
+        )}
         {sel && (
           <Notice title="Como funciona">
-            {sel.mode.how} <span className="text-muted">{sel.mode.limits}</span>
+            {isFal && sel.mode.howFal ? sel.mode.howFal : sel.mode.how} <span className="text-muted">{isFal ? 'Trecho de 1 a 15 s. O áudio original do vídeo é mantido.' : sel.mode.limits}</span>
           </Notice>
         )}
-        {(mode === 'full_body' || mode === 'cinematic') && (
+        {(mode === 'full_body' || mode === 'cinematic') && !isFal && (
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label={`Intensidade das expressões: ${opts.expression_intensity}`}>
               {(i) => <input id={i} type="range" min={1} max={5} value={opts.expression_intensity} onChange={(e) => setOpts({ ...opts, expression_intensity: Number(e.target.value) })} />}
@@ -249,7 +269,7 @@ export default function Transform() {
             </Checkbox>
           </div>
         )}
-        {(mode === 'cinematic' || mode === 'stylized' || mode === 'appearance') && (
+        {(mode === 'stylized' || mode === 'appearance' || (mode === 'cinematic' && !isFal)) && (
           <Field label={mode === 'cinematic' ? 'Cenário da nova cena (obrigatório)' : 'Estilo/ajustes extras (opcional)'}>
             {(i) => <Textarea id={i} maxLength={600} placeholder={mode === 'cinematic' ? 'ex.: telhado de um prédio em Tóquio à noite, chuva leve, luzes neon' : 'ex.: visual anime com contornos marcados'} value={opts.scene_prompt} onChange={(e) => setOpts({ ...opts, scene_prompt: e.target.value })} />}
           </Field>

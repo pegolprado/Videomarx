@@ -15,8 +15,10 @@ export interface TransformMode {
   summary: string;
   /** como o pipeline funciona hoje — mostrado ao usuário */
   how: string;
-  /** integração exigida; null = nenhuma integração conectada executa este modo */
-  provider: 'runway' | null;
+  /** integrações capazes de executar o modo, em ordem de preferência; vazio = nenhuma */
+  providers: ('fal' | 'runway')[];
+  /** como funciona com a fal.ai (quando suportado) */
+  howFal?: string;
   pipeline: string[];
   limits: string;
 }
@@ -27,8 +29,8 @@ export const TRANSFORM_MODES: TransformMode[] = [
     letter: 'A',
     title: 'Substituição facial',
     summary: 'Troca apenas o rosto da pessoa selecionada, mantendo o resto da cena.',
-    how: 'Requer um provedor dedicado de troca de rosto com API e licença comercial. Nenhum está conectado.',
-    provider: null,
+    how: 'Requer um provedor dedicado de troca de rosto com API e licença comercial. Nenhum está conectado. Para trocar a pessoa inteira mantendo o cenário, use o Modo C com a fal.ai.',
+    providers: [],
     pipeline: [],
     limits: 'Integração pendente.',
   },
@@ -37,8 +39,8 @@ export const TRANSFORM_MODES: TransformMode[] = [
     letter: 'B',
     title: 'Cabeça e rosto',
     summary: 'Modifica cabeça, cabelo e rosto preservando corpo e movimentos.',
-    how: 'Requer um provedor de edição localizada de cabeça. Nenhum está conectado.',
-    provider: null,
+    how: 'Requer um provedor de edição localizada de cabeça. Nenhum está conectado. Para trocar a pessoa inteira mantendo o cenário, use o Modo C com a fal.ai.',
+    providers: [],
     pipeline: [],
     limits: 'Integração pendente.',
   },
@@ -48,7 +50,8 @@ export const TRANSFORM_MODES: TransformMode[] = [
     title: 'Personagem de corpo inteiro',
     summary: 'O personagem executa a atuação do vídeo: expressões, gestos e movimentos do corpo.',
     how: 'Runway Act-Two: a imagem principal do personagem é animada usando o seu vídeo como referência de atuação (controle corporal ligado). O resultado usa o cenário da imagem do personagem.',
-    provider: 'runway',
+    howFal: 'fal.ai — Wan 2.2 Animate Replace: a pessoa do seu vídeo é substituída pelo personagem no MESMO cenário, mantendo movimentos, gestos, expressões e iluminação.',
+    providers: ['fal', 'runway'],
     pipeline: ['runway.act_two'],
     limits: 'Trecho de 3 a 30 s. O rosto precisa estar visível e dentro do quadro.',
   },
@@ -58,7 +61,7 @@ export const TRANSFORM_MODES: TransformMode[] = [
     title: 'Transformação de aparência',
     summary: 'Muda roupas, cores e estilo visual sem alterar a ação original.',
     how: 'O primeiro quadro é editado com o personagem como referência (Runway Gen-4 Image) e usado como guia para o Runway Aleph 2 transformar o vídeo inteiro mantendo o movimento.',
-    provider: 'runway',
+    providers: ['runway'],
     pipeline: ['runway.gen4_image', 'runway.aleph2'],
     limits: 'Trechos curtos (limite configurado pelo administrador).',
   },
@@ -68,7 +71,7 @@ export const TRANSFORM_MODES: TransformMode[] = [
     title: 'Personagem estilizado',
     summary: 'Transforma a pessoa em 3D, cartoon, anime ou outro estilo.',
     how: 'Mesmo pipeline do modo D, com o estilo do personagem aplicado ao vídeo pelo Runway Aleph 2.',
-    provider: 'runway',
+    providers: ['runway'],
     pipeline: ['runway.gen4_image', 'runway.aleph2'],
     limits: 'Trechos curtos (limite configurado pelo administrador).',
   },
@@ -78,7 +81,8 @@ export const TRANSFORM_MODES: TransformMode[] = [
     title: 'Recriação cinematográfica',
     summary: 'Usa o vídeo como referência de movimento para criar uma cena nova com o personagem.',
     how: 'Gera uma imagem do personagem no cenário descrito (Runway Gen-4 Image) e a anima com a atuação do seu vídeo (Runway Act-Two).',
-    provider: 'runway',
+    howFal: 'fal.ai — Wan 2.2 Animate Move: o personagem, no cenário da imagem dele, repete os movimentos e expressões do seu vídeo.',
+    providers: ['fal', 'runway'],
     pipeline: ['runway.gen4_image', 'runway.act_two'],
     limits: 'Trecho de 3 a 30 s.',
   },
@@ -87,14 +91,17 @@ export const TRANSFORM_MODES: TransformMode[] = [
 export interface ModeAvailability {
   mode: TransformMode;
   available: boolean;
+  /** motores configurados capazes de executar o modo */
+  engines: ('fal' | 'runway')[];
   reason?: string;
 }
 
 export function availableModes(caps: Capabilities | undefined): ModeAvailability[] {
   return TRANSFORM_MODES.map((mode) => {
-    if (!mode.provider) return { mode, available: false, reason: 'Integração pendente' };
-    const status = integrationStatus(caps, mode.provider);
-    return status.ok ? { mode, available: true } : { mode, available: false, reason: status.reason };
+    if (!mode.providers.length) return { mode, available: false, engines: [], reason: 'Integração pendente' };
+    const statuses = mode.providers.map((p) => ({ p, st: integrationStatus(caps, p) }));
+    const engines = statuses.filter((x) => x.st.ok).map((x) => x.p);
+    return engines.length ? { mode, available: true, engines } : { mode, available: false, engines, reason: statuses[0].st.reason };
   });
 }
 

@@ -1,7 +1,7 @@
 import type { JobKind } from '../../../shared/jobs.ts';
 import type { Handler } from '../types.ts';
 import { autocutHandler, concatHandler, exportHandler, probeHandler, slideshowHandler, trimHandler } from './media.ts';
-import { imageHandler, textHandler, transformHandler, ttsHandler, videoHandler } from './ai.ts';
+import { imageHandler, talkHandler, textHandler, transformHandler, ttsHandler, videoHandler } from './ai.ts';
 import { localTtsHandler, transcribeHandler } from './local.ts';
 import { autoVideoHandler } from './pipeline.ts';
 
@@ -17,6 +17,7 @@ export const HANDLERS: Record<JobKind, Handler> = {
   'ai.transform': transformHandler,
   'ai.tts': ttsHandler,
   'ai.text': textHandler,
+  'ai.talk': talkHandler,
   'local.transcribe': transcribeHandler,
   'local.tts': localTtsHandler,
   'pipeline.auto_video': autoVideoHandler,
@@ -29,6 +30,7 @@ export interface WorkerCaps {
   anthropic: boolean;
   gemini?: boolean;
   cloudflare?: boolean;
+  fal?: boolean;
   local_transcribe?: boolean;
   local_tts?: boolean;
 }
@@ -37,7 +39,9 @@ export function supportedKinds(caps: WorkerCaps): JobKind[] {
   const kinds: JobKind[] = [];
   if (caps.ffmpeg) kinds.push('media.probe', 'media.trim', 'media.export', 'media.concat', 'media.autocut', 'media.slideshow');
   // tarefas de IA visual também usam FFmpeg (preparar trechos, miniaturas)
-  if (caps.runway && caps.ffmpeg) kinds.push('ai.video', 'ai.transform', 'ai.tts');
+  if (caps.runway && caps.ffmpeg) kinds.push('ai.tts');
+  if ((caps.runway || caps.fal) && caps.ffmpeg) kinds.push('ai.video', 'ai.transform');
+  if (caps.fal && caps.ffmpeg) kinds.push('ai.talk');
   if ((caps.runway || caps.cloudflare) && caps.ffmpeg) kinds.push('ai.image');
   if (caps.anthropic || caps.gemini) kinds.push('ai.text');
   // motor próprio: dependem também do FFmpeg (conversão de áudio)

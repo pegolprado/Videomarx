@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import type { Aspect } from '@shared/jobs';
 import { scenePrompt, splitScriptLocally, type SceneFields } from '@shared/prompt';
-import { VIDEO_MODELS, ratioFor } from '@shared/ratios';
+import { VIDEO_MODELS, ratioFor, videoEngine } from '@shared/ratios';
 import { AssetGrid } from '@/components/Assets';
 import { CharacterSelect } from '@/components/CharacterSelect';
 import { CostConfirm } from '@/components/CostConfirm';
@@ -45,7 +45,15 @@ export default function Generate() {
   const [saving, setSaving] = useState(false);
   const chars = useCharacters();
   const character = chars.data?.find((c) => c.id === characterId);
-  const runway = useIntegration('runway');
+  const runwayInt = useIntegration('runway');
+  const falInt = useIntegration('fal');
+  const engine = videoEngine(model);
+  useEffect(() => {
+    // sem Runway, começa pelo modelo barato da fal.ai
+    if (!runwayInt.ok && falInt.ok && videoEngine(model) === 'runway' && !project.data) setModel('fal-wan2.2');
+  }, [runwayInt.ok, falInt.ok]); // eslint-disable-line react-hooks/exhaustive-deps
+  // integração do motor do modelo escolhido
+  const runway = engine === 'fal' ? falInt : runwayInt;
   const textEngine = useTextEngine();
   const spec = VIDEO_MODELS.find((m) => m.id === model)!;
   const usesImage = useCharImage && !!character?.primary_image_id;
@@ -122,7 +130,7 @@ export default function Generate() {
         subtitle="Descreva cenas em linguagem natural, gere cada uma, revise e monte a sequência final."
         actions={<Button onClick={() => persist()} loading={saving}><Save className="size-4" /> Salvar projeto</Button>}
       />
-      <IntegrationGate provider="runway" feature="Geração de vídeo" />
+      <IntegrationGate provider={engine} feature={engine === 'fal' ? 'Vídeo com movimento (fal.ai)' : 'Geração de vídeo (Runway)'} />
 
       <Card className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Field label="Nome do projeto">{(i) => <Input id={i} value={name} onChange={(e) => setName(e.target.value)} />}</Field>
@@ -176,7 +184,7 @@ export default function Generate() {
           prompt={s.prompt_override || scenePrompt(s, character, usesImage)}
           canGenerate={runway.ok && !!ratio && !(spec.needsImage && !usesImage)}
           blockReason={!runway.ok ? runway.reason : !ratio ? 'Proporção indisponível para este modelo.' : spec.needsImage && !usesImage ? 'Este modelo exige imagem inicial.' : undefined}
-          jobParams={{ model, aspect, duration: s.duration, character_id: characterId || undefined, use_character_image: usesImage, scene_index: idx, prompt: s.prompt_override || scenePrompt(s, character, usesImage) }}
+          jobParams={{ engine, ...(engine === 'fal' ? { resolution: '480p' } : {}), model, aspect, duration: s.duration, character_id: characterId || undefined, use_character_image: usesImage, scene_index: idx, prompt: s.prompt_override || scenePrompt(s, character, usesImage) }}
           durations={spec.durations as readonly number[]}
           projectId={projectId}
           onChange={(p) => update(s.id, p)}

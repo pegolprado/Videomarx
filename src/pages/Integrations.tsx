@@ -11,13 +11,18 @@ const FEATURES: { feature: string; provider: string | null; note?: string }[] = 
   { feature: 'Imagens de personagens e cenas — Cloudflare FLUX (grátis, cota diária)', provider: 'cloudflare' },
   { feature: 'Imagens de personagens e cenários — Runway', provider: 'runway' },
   { feature: 'Vídeo por texto e por imagem', provider: 'runway' },
-  ...TRANSFORM_MODES.map((m) => ({ feature: `Transformar vídeo — Modo ${m.letter}: ${m.title}`, provider: m.provider, note: m.provider ? undefined : m.how })),
+  ...TRANSFORM_MODES.flatMap((m) =>
+    m.providers.length
+      ? m.providers.map((p) => ({ feature: `Transformar vídeo — Modo ${m.letter}: ${m.title} (${p === 'fal' ? 'fal.ai' : 'Runway'})`, provider: p as string | null, note: undefined as string | undefined }))
+      : [{ feature: `Transformar vídeo — Modo ${m.letter}: ${m.title}`, provider: null, note: m.how }],
+  ),
+  { feature: 'Vídeo com movimento a partir de imagem — Wan 2.2 (fal.ai)', provider: 'fal' },
+  { feature: 'Personagem falando (imagem + voz, boca sincronizada) — VEED Fabric (fal.ai)', provider: 'fal' },
   { feature: 'Texto para fala — motor próprio (Piper, grátis)', provider: 'local' },
   { feature: 'Texto para fala — Runway (vozes ElevenLabs)', provider: 'runway' },
   { feature: 'Roteiros, ganchos, legendas, hashtags e divisão em cenas — Gemini (grátis)', provider: 'gemini' },
   { feature: 'Roteiros, ganchos, legendas, hashtags e divisão em cenas — Claude', provider: 'anthropic' },
   { feature: 'Detecção automática de pessoas no vídeo', provider: null, note: 'Requer um modelo de detecção/segmentação; o usuário confirma a pessoa pela prévia.' },
-  { feature: 'Sincronização labial', provider: null, note: 'Requer um serviço de lip sync com API.' },
   { feature: 'Legendas automáticas a partir da fala (Whisper, grátis)', provider: 'local' },
   { feature: 'Clonagem de voz', provider: null, note: 'Desabilitada por política: somente vozes sintéticas originais.' },
   { feature: 'Dados de tendências para conteúdo viral', provider: null, note: 'Nenhuma fonte de dados real conectada; nada é inventado.' },

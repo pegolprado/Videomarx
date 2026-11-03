@@ -10,6 +10,7 @@ import type { RunwayAdapter } from './providers/runway.ts';
 import { spentCredits } from './providers/runway.ts';
 import type { TextGenerator } from './providers/anthropic.ts';
 import type { CloudflareAI } from './providers/cloudflare.ts';
+import type { FalAdapter } from './providers/fal.ts';
 import type { AssetRow, CharacterRow, JobContext, JobRow, Settings } from './types.ts';
 
 export interface RunnerDeps {
@@ -20,6 +21,7 @@ export interface RunnerDeps {
   text?: TextGenerator;
   gemini?: TextGenerator;
   cloudflare?: CloudflareAI;
+  fal?: FalAdapter;
   log?: (msg: string, data?: Record<string, unknown>) => void;
 }
 
@@ -85,6 +87,7 @@ export async function processJob(job: JobRow, deps: RunnerDeps): Promise<'succee
       text: deps.text,
       gemini: deps.gemini,
       cloudflare: deps.cloudflare,
+      fal: deps.fal,
       workDir,
       inputs,
       async progress(p, state, taskId, event) {

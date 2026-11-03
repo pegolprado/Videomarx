@@ -1,10 +1,10 @@
 import { clsx } from 'clsx';
-import { Ban, CheckCircle2, Clock, Download, Loader2, RotateCcw, XCircle } from 'lucide-react';
+import { Ban, CheckCircle2, Clock, Download, Loader2, RotateCcw, Trash2, XCircle } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { KIND_LABEL, STATUS_LABEL, ACTIVE_STATUSES } from '@shared/jobs';
 import { formatCredits } from '@shared/format';
-import { cancelJob, signedUrl } from '@/lib/api';
+import { cancelJob, deleteAsset, signedUrl } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
 import { useAssets } from '@/lib/hooks';
 import type { Job } from '@/lib/types';
@@ -101,6 +101,22 @@ export function JobCard({ job, showOutputs = true, onRetry }: { job: Job; showOu
                 }}
               >
                 <Download className="size-3.5" /> Baixar
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={async () => {
+                  if (!confirm(`Excluir "${a.name}" definitivamente?`)) return;
+                  try {
+                    await deleteAsset(a);
+                    toast.success('Arquivo excluído.');
+                    qc.invalidateQueries({ queryKey: ['assets'] });
+                  } catch (e) {
+                    toast.error(errorMessage(e));
+                  }
+                }}
+              >
+                <Trash2 className="size-3.5" /> Excluir
               </Button>
             </div>
           ))}

@@ -134,3 +134,35 @@ begin
   raise notice 'montagem ok';
 end $$;
 rollback;
+
+-- fal.ai
+begin;
+do $$
+declare
+  v_u uuid := tests.create_user('fal@teste.com');
+  v_video uuid := tests.make_video(v_u, 6);
+  v_img uuid := gen_random_uuid(); v_aud uuid := gen_random_uuid();
+  v_est jsonb;
+begin
+  insert into public.assets (id, user_id, kind, category, path, probe_status, duration_s) values
+    (v_img, v_u, 'image', 'generated', v_u || '/g/i.jpg', 'ok', null), (v_aud, v_u, 'audio', 'generated', v_u || '/g/a.mp3', 'ok', 3.2);
+  update public.credit_accounts set available = 500 where user_id = v_u;
+  update public.app_settings set value = '0' where key = 'monthly_budget_usd';
+  perform tests.login(v_u);
+  v_est := public.estimate_job('ai.transform', '{"engine":"fal","mode":"full_body","resolution":"720p"}', array[v_video]);
+  perform tests.assert_eq(v_est ->> 'provider', 'fal', 'troca de personagem pela fal');
+  perform tests.assert_eq((v_est ->> 'credits')::int, 48, '6 s × 8 créditos (720p)');
+  v_est := public.estimate_job('ai.transform', '{"engine":"fal","mode":"stylized"}', array[v_video]);
+  perform tests.assert(jsonb_array_length(v_est -> 'errors') > 0, 'modo sem suporte na fal');
+  v_est := public.estimate_job('ai.video', '{"engine":"fal","resolution":"480p"}', '{}');
+  perform tests.assert_eq((v_est ->> 'credits')::int, 5, 'vídeo de 5 s em 480p');
+  v_est := public.estimate_job('ai.talk', '{"resolution":"480p"}', array[v_img, v_aud]);
+  perform tests.assert_eq((v_est ->> 'credits')::int, 32, '4 s (3,2 arredondado) × 8');
+  perform public.create_job('ai.talk', '{"resolution":"480p"}', array[v_img, v_aud], null, 'talk-000001', 32);
+  perform tests.assert_fails(format($q$select public.create_job('ai.talk', '{}', array[%L]::uuid[], null, 'talk-000002', 100)$q$, v_img), 'falar exige imagem e áudio');
+  perform tests.logout();
+  perform tests.assert((select count(*) = 0 from public.provider_secrets), 'cofre vazio');
+  insert into public.provider_secrets (name, value) values ('FAL_KEY', 'chave-fal-123456');
+  raise notice 'fal ok';
+end $$;
+rollback;

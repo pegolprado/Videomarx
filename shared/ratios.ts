@@ -27,9 +27,16 @@ export const VIDEO_MODELS = [
   { id: 'gen4_turbo', label: 'Runway Gen-4 Turbo (só a partir de imagem)', durations: [5, 10], textToVideo: false, needsImage: true },
   { id: 'veo3.1', label: 'Google Veo 3.1 (via Runway)', durations: [4, 6, 8], textToVideo: true, needsImage: false },
   { id: 'veo3.1_fast', label: 'Google Veo 3.1 Fast (via Runway)', durations: [4, 6, 8], textToVideo: true, needsImage: false },
+  { id: 'fal-wan2.2', label: 'Wan 2.2 via fal.ai — barato (só a partir de imagem)', durations: [5], textToVideo: false, needsImage: true },
 ] as const;
 
+/** motor de cada modelo de vídeo */
+export function videoEngine(model: string): 'runway' | 'fal' {
+  return model === 'fal-wan2.2' ? 'fal' : 'runway';
+}
+
 export function ratioFor(model: string, aspect: Aspect, textOnly: boolean): string | null {
+  if (model === 'fal-wan2.2') return textOnly ? null : aspect;
   const table = textOnly ? TEXT_TO_VIDEO_RATIOS[model] : VIDEO_RATIOS[model];
   return table?.[aspect] ?? null;
 }

@@ -5,6 +5,7 @@ import type { Storage } from './storage.ts';
 import type { RunwayAdapter } from './providers/runway.ts';
 import type { TextGenerator } from './providers/anthropic.ts';
 import type { CloudflareAI } from './providers/cloudflare.ts';
+import type { FalAdapter } from './providers/fal.ts';
 
 export interface JobRow {
   id: string;
@@ -87,6 +88,8 @@ export interface JobContext {
   gemini?: TextGenerator;
   /** Cloudflare Workers AI (cota grátis) */
   cloudflare?: CloudflareAI;
+  /** fal.ai (pago por uso) */
+  fal?: FalAdapter;
   workDir: string;
   inputs: AssetRow[];
   /** registra progresso/estado (estado sobrevive a quedas do worker) */
