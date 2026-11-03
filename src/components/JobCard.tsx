@@ -86,6 +86,10 @@ export function JobCard({ job, showOutputs = true, onRetry }: { job: Job; showOu
           {outputs.data.map((a) => (
             <div key={a.id} className="flex flex-col gap-2">
               {a.kind === 'video' || a.kind === 'audio' ? <MediaPreview asset={a} /> : <AssetThumb asset={a} />}
+              <p className="truncate text-xs text-muted" title={a.name}>
+                {a.kind === 'subtitle' ? 'Legenda (.srt) — ' : a.kind === 'video' ? 'Vídeo — ' : a.kind === 'audio' ? 'Áudio — ' : 'Imagem — '}
+                {a.name}
+              </p>
               <Button
                 size="sm"
                 onClick={async () => {
